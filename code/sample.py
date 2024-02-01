@@ -18,12 +18,14 @@ class SNeIa( Transient ):
     _RATE = 2.35 * 10**4 # Perley 2020
 
     # {'model': func, 'prop': dict, 'input':, 'as':}
-    _MODEL = dict(x1 = {"func": SNeIaStretch.nicolas2021}, 
+    _MODEL = dict( redshift = {"kwargs": {"zmax":0.2}},
+                   
+                   x1 = {"func": SNeIaStretch.nicolas2021}, 
                    
                    c = {"func": SNeIaColor.intrinsic_and_dust},
 
                    t0 = {"func": np.random.uniform, 
-                         "kwargs": {"low":56_000, "high":56_200} },
+                         "kwargs": {"low":58179, "high":59215} },
                        
                    magabs = {"func": SNeIaMagnitude.tripp1998,
                              "kwargs": {"x1": "@x1", "c": "@c",
