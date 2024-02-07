@@ -3,13 +3,14 @@ import numpy as np
 import pandas
 import fitsio
 from glob import glob
+import pickle
 
 
 def load_bgs(path=None, filename='Uchuu.csv', columns=['RA', 'DEC', 'Z', 'Z_COSMO', 'STATUS'], in_desi=True):
     try:
         filepath = glob('../../**/' + filename, recursive=True)[0]
         df = pandas.read_csv(filepath, index_col=0)
-        if set(map(lambda s: s.lower(), columns)).issubset(set(df.columns)):
+        if set(map(lambda s: s.lower(), columns)).difference({'status','in_desi'}).issubset(set(df.columns)):
             print(f'Found file {filepath} with columns {df.columns}')
             return df
         else:
