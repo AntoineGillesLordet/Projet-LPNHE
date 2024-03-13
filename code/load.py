@@ -4,7 +4,14 @@ import pandas
 import fitsio
 from glob import glob
 import pickle
+from astropy.coordinates import SkyCoord
+from astropy.units import deg,Mpc
+from astropy import cosmology
 
+try:
+    from tqdm import tqdm
+except:
+    tqdm = lambda x:x
 
 def load_bgs(path=None, filename='Uchuu.csv', columns=['RA', 'DEC', 'Z', 'Z_COSMO', 'STATUS'], in_desi=True):
     try:
@@ -42,3 +49,38 @@ def extract_ztf(start_time=58179, end_time=59215):
         survey = pickle.load(file)
     survey.set_data(survey.data[(survey.data['mjd'] > start_time) & (survey.data['mjd'] < end_time)])
     return survey
+
+def load_ztf_sn_with_hosts(bgs_df):
+    ztf_sn = pandas.read_csv('data/data_ztf.csv', index_col=0)
+    
+    if 'host' in ztf_sn.columns:
+        return ztf_sn
+    else:
+        H0 = 67.66  # Hubble rate in km/s/Mpc
+        Om0 = 0.3111  # Matter density parameter
+        Ode0 = 1.0 - Om0  # Dark energy density parameter:
+        cosmo = cosmology.LambdaCDM(H0, Om0, Ode0)
+
+        SN_coords = SkyCoord(ra=ztf_sn["ra"]*deg, dec=ztf_sn["dec"]*deg, distance=cosmo.comoving_distance(ztf_sn['z']), unit=(deg,deg,Mpc))
+        idx=[]
+
+        ## Get galaxies that are close enough to be candidates
+        for sn in tqdm(ztf_sn.index):
+            ra, dec, z = ztf_sn.loc[sn]['ra'], ztf_sn.loc[sn]['dec'], ztf_sn.loc[sn]['z']
+            idx.append(bgs_df[bgs_df['ra'].between(ra - 5, ra + 5) & bgs_df['dec'].between(dec - 5, dec + 5) & bgs_df['z'].between(z - 0.01, z+0.01)].index)
+        
+        nearest = []
+        for i,bgs_ids in tqdm(zip(ztf_sn.index,idx), total=len(idx)):
+            if len(bgs_ids):
+                nearest.append(bgs_ids[SkyCoord(ra=bgs_df.loc[bgs_ids]['ra'],
+                                               dec=bgs_df.loc[bgs_ids]['dec'],
+                                               distance=cosmo.comoving_distance(bgs_df.loc[bgs_ids]['z']),
+                                               unit=(deg,deg,Mpc)
+                                              ).separation_3d(SN_coords[0]).argmin()])
+            else:
+                nearest.append(-1)
+
+        ztf_sn['host'] = nearest
+        ztf_sn['host_not_valid'] = np.array(nearest) < 0
+        ztf_sn = ztf_sn.astype({"host": int})
+        return ztf_sn
