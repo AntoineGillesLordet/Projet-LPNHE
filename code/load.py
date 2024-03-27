@@ -4,14 +4,9 @@ import pandas
 import fitsio
 from glob import glob
 import pickle
-from astropy.coordinates import SkyCoord
-from astropy.units import deg,Mpc
-from astropy import cosmology
+import healpy
+from tqdm import tqdm
 
-try:
-    from tqdm import tqdm
-except:
-    tqdm = lambda x:x
 
 def load_bgs(path=None, filename='Uchuu.csv', columns=['RA', 'DEC', 'Z', 'Z_COSMO', 'STATUS'], in_desi=True):
     try:
@@ -50,37 +45,51 @@ def extract_ztf(start_time=58179, end_time=59215):
     survey.set_data(survey.data[(survey.data['mjd'] > start_time) & (survey.data['mjd'] < end_time)])
     return survey
 
-def load_ztf_sn_with_hosts(bgs_df):
-    ztf_sn = pandas.read_csv('data/data_ztf.csv', index_col=0)
-    
-    if 'host' in ztf_sn.columns:
-        return ztf_sn
-    else:
-        H0 = 67.66  # Hubble rate in km/s/Mpc
-        Om0 = 0.3111  # Matter density parameter
-        Ode0 = 1.0 - Om0  # Dark energy density parameter:
-        cosmo = cosmology.LambdaCDM(H0, Om0, Ode0)
 
-        SN_coords = SkyCoord(ra=ztf_sn["ra"]*deg, dec=ztf_sn["dec"]*deg, distance=cosmo.comoving_distance(ztf_sn['z']), unit=(deg,deg,Mpc))
-        idx=[]
+def load_maps(ztf_path="data/ztf_distribution.fits", bgs_pix_path="data/bgs_pixels.pkl",  ztf_nside = 128, bgs_nside = 128, F=0.1):
+    try:
+        map_=healpy.read_map()
 
-        ## Get galaxies that are close enough to be candidates
-        for sn in tqdm(ztf_sn.index):
-            ra, dec, z = ztf_sn.loc[sn]['ra'], ztf_sn.loc[sn]['dec'], ztf_sn.loc[sn]['z']
-            idx.append(bgs_df[bgs_df['ra'].between(ra - 5, ra + 5) & bgs_df['dec'].between(dec - 5, dec + 5) & bgs_df['z'].between(z - 0.01, z+0.01)].index)
+        with open("data/bgs_redshifts_map.pkl", "rb") as fp:
+            bgs_redshifts = pickle.load(fp)
+
+    except FileNotFoundError:
+        print('File missing, computing them again and saving...')
+
+        # Initial SN density skymap
+        ztf_sn = pandas.read_csv('data/data_ztf.csv', index_col=0)
+        ids = healpy.ang2pix(theta = np.pi/2 - ztf_sn['dec']*np.pi/180, phi=ztf_sn['ra']*np.pi/180, nside=ztf_nside)
+        map_ = np.zeros(healpy.nside2npix(ztf_nside))
+        for i in tqdm(ids):
+            map_[i] += 1
+        map_ = healpy.smoothing(map_, fwhm=G)
+        map_ -= map_.min()
+
         
-        nearest = []
-        for i,bgs_ids in tqdm(zip(ztf_sn.index,idx), total=len(idx)):
-            if len(bgs_ids):
-                nearest.append(bgs_ids[SkyCoord(ra=bgs_df.loc[bgs_ids]['ra'],
-                                               dec=bgs_df.loc[bgs_ids]['dec'],
-                                               distance=cosmo.comoving_distance(bgs_df.loc[bgs_ids]['z']),
-                                               unit=(deg,deg,Mpc)
-                                              ).separation_3d(SN_coords[0]).argmin()])
-            else:
-                nearest.append(-1)
+        bgs_df = load_bgs(columns=['RA', 'DEC', 'Z', 'Z_COSMO', 'STATUS', 'V_PEAK', 'V_RMS','R_MAG_ABS','R_MAG_APP'])
+        
+        # Mask of areas where there are no BGS galaxies
+        id_bgs = healpy.ang2pix(theta = np.pi/2 - bgs_df['dec']*np.pi/180, phi=bgs_df['ra']*np.pi/180, nside=nside)
+        mask = np.zeros(healpy.nside2npix(nside), dtype=bool)
+        for i in tqdm(id_bgs):
+            mask[i] = True
+        map_[~mask]=0
+        
+        # Normalization and saving
+        map_ /= np.sum(map_)
+        healpy.write_map("data/ztf_distribution.fits", map_)
+        
+        # list of BGS redshifts along lines of sight 
+        z_nside = 64
+        id_bgs = healpy.ang2pix(theta = np.pi/2 - bgs_df['dec']*np.pi/180, phi=bgs_df['ra']*np.pi/180, nside=bgs_nside)
+        bgs_pix = [[]]*healpy.nside2npix(bgs_nside)
+        for i,nb_pix in tqdm(enumerate(id_bgs), total = len(id_bgs)):
+            bgs_pix[nb_pix] = bgs_pix[nb_pix] + [id_bgs.index[i]]
 
-        ztf_sn['host'] = nearest
-        ztf_sn['host_not_valid'] = np.array(nearest) < 0
-        ztf_sn = ztf_sn.astype({"host": int})
-        return ztf_sn
+        bgs_redshifts = [np.array(bgs_df.loc[ids]['z']) for ids in bgs_pix]
+        
+        with open("data/bgs_redshifts_map.pkl", "wb") as fp:
+            pickle.dump(bgs_redshifts, fp)
+    
+    finally:
+        return map_, bgs_redshifts
