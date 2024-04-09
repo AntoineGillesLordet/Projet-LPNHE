@@ -26,16 +26,10 @@ def dset_sanitize_and_filter(dset, return_index=True):
             dset.targets.data.loc[i, "keep"]
             and np.sum(
                 obs_data[obs_data["detected"]]["time"].between(
-                    target["t0"] - 40, target["t0"]
+                    target["t0"] - 40, target["t0"] + 130
                 )
             )
-            >= 1
-            and np.sum(
-                obs_data[obs_data["detected"]]["time"].between(
-                    target["t0"], target["t0"] + 130
-                )
-            )
-            >= 1
+            >= 5
         )
     if return_index:
         return np.where(dset.targets.data["good"])[0]
