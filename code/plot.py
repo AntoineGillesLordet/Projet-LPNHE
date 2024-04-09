@@ -4,8 +4,10 @@ import corner
 from scipy.spatial import cKDTree
 from scipy.ndimage import gaussian_filter
 
+
 def corner_(data, var_names=None, fig=None, labels=None, title=None, **kwargs):
-    params = dict(var_names=var_names,
+    params = dict(
+        var_names=var_names,
         show_titles=True,
         bins=50,
         smooth=0.9,
@@ -17,11 +19,12 @@ def corner_(data, var_names=None, fig=None, labels=None, title=None, **kwargs):
         plot_datapoints=True,
         fill_contours=True,
         max_n_ticks=7,
-        hist_kwargs=dict(density=True, color=kwargs.get("color",'b')),
+        hist_kwargs=dict(density=True, color=kwargs.get("color", "b")),
         labels=labels,
         alpha=0.2,
-        fig = fig)
-    
+        fig=fig,
+    )
+
     params.update(kwargs)
 
     fig = corner.corner(
@@ -31,16 +34,17 @@ def corner_(data, var_names=None, fig=None, labels=None, title=None, **kwargs):
 
     if title:
         fig.suptitle(title, fontsize=30)
-    
+
     fig.set_dpi(50)
     return fig
+
 
 def scatter_mollweide(data, ax=None, **kwargs):
     if ax is None:
         fig = plt.figure()
         ax = fig.add_subplot(projection="mollweide")
 
-    params=dict(s=1, color='k',alpha=0.3, marker=".")
+    params = dict(s=1, color="k", alpha=0.3, marker=".")
     params.update(kwargs)
     ax.scatter(
         (data["ra"] - 360 * (data["ra"] > 180)) * np.pi / 180,
@@ -53,14 +57,16 @@ def scatter_mollweide(data, ax=None, **kwargs):
 def scatter_3d(x, y, z, bins=50):
     count, (binx, biny, binz) = np.histogramdd([x, y, z], bins=bins)
     count = gaussian_filter(count, 0.9)
-    x_,y_,z_ = np.meshgrid((binx[:-1]+binx[1:])/2-binx.min(),
-                        (biny[:-1]+biny[1:])/2-biny.min(),
-                        (binz[:-1]+binz[1:])/2-binz.min())
-    tree = cKDTree(np.dstack((x_.flatten(),y_.flatten(),z_.flatten())).reshape(-1,3))
+    x_, y_, z_ = np.meshgrid(
+        (binx[:-1] + binx[1:]) / 2 - binx.min(),
+        (biny[:-1] + biny[1:]) / 2 - biny.min(),
+        (binz[:-1] + binz[1:]) / 2 - binz.min(),
+    )
+    tree = cKDTree(np.dstack((x_.flatten(), y_.flatten(), z_.flatten())).reshape(-1, 3))
     pts = np.vstack([x - binx.min(), y - biny.min(), z - binz.min()]).T
     dist_id, nn_id = tree.query(pts, k=1)
-    c =  np.transpose(count, axes=[1,0,2]).flatten()[nn_id]
-    fig, ax = plt.subplots(figsize=(10,10), subplot_kw={"projection":"3d"})
-    ax.scatter(x, y, z, c=c, s=.5, alpha=0.1)
+    c = np.transpose(count, axes=[1, 0, 2]).flatten()[nn_id]
+    fig, ax = plt.subplots(figsize=(10, 10), subplot_kw={"projection": "3d"})
+    ax.scatter(x, y, z, c=c, s=0.5, alpha=0.1)
     ax.azim = -45
     ax.elev = 30
