@@ -2,6 +2,7 @@ from skysurvey.target.snia import SNeIaMagnitude, SNeIaColor, SNeIaStretch
 from skysurvey.target import Transient
 from skysurvey.effects import dust
 import numpy as np
+from .load import load_bgs
 
 def rand_positions(positions, size=1, weights=None, zcut=0.1):
     positions_ = positions[positions["z"] < zcut] 
@@ -39,10 +40,11 @@ class SNeIa_full_bgs( Transient ):
                         }, #because it needs to call sncosmo_model.get(param_name)
                        
                    radecz = {"func": rand_positions,
-                            "kwargs": {'positions':bgs_df, 'zcut':0.06}, 
+                            "kwargs": {'positions':load_bgs(), 'zcut':0.06}, 
                             "as": ["ra","dec","z"]
                            },
                         
                    mwebv = {"func": dust.get_mwebv, "kwargs":{"ra":"@ra", "dec":"@dec"}}
                     
                     )
+    
