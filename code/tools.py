@@ -12,30 +12,34 @@ except:
 
 
 def dset_sanitize_and_filter(dset, return_index=True):
+    logger.log(logging.INFO, "Cleaning skysurvey dataset")
     dset.data["detected"] = (dset.data["flux"] / dset.data["fluxerr"]) > 5
     dset.targets.data["keep"] = False
     dset.targets.data["good"] = False
+    bands = np.unique(dset.data["band"])
+
     ids = np.unique(list(map(lambda x: x[0], dset.data.index)))
     for i in tqdm(ids):
         target = dset.targets.data.loc[i]
         obs_data = dset.data.loc[i]
-        dset.targets.data.loc[i, "keep"] = np.any(
-            obs_data["time"].between(target["t0"] - 10, target["t0"] + 20)
-        )
+        dset.targets.data.loc[i, "keep"] = np.any(obs_data["time"].between(target["t0"] - 10, target["t0"] + 25))
+        
         dset.targets.data.loc[i, "good"] = (
             dset.targets.data.loc[i, "keep"]
-            and np.sum(
-                obs_data[obs_data["detected"]]["time"].between(
-                    target["t0"] - 40, target["t0"] + 130
-                )
-            )
-            >= 5
+            and np.any([np.sum(obs_data[obs_data["detected"] & (obs_data['band']==b)]["time"].between(target["t0"] - 40, target["t0"] + 130)) >= 10 for b in bands])
+            and (np.sum(obs_data[obs_data["detected"]]["time"].between(target["t0"] - 40, target["t0"])) > 1)
+            and (np.sum(obs_data[obs_data["detected"]]["time"].between(target["t0"], target["t0"] + 130)) > 1)
+            # and len(np.unique(obs_data[obs_data["time"].between(target["t0"] - 40, target["t0"] + 130)]['band'])) > 2
         )
+    logger.log(logging.INFO, "Done")
     if return_index:
         return np.where(dset.targets.data["good"])[0]
 
 
+
+
 def X0X1C_to_MbX1C(values, cov, M0=10.501612):
+    logger.log(logging.INFO, "Converting (x0,x1,c) values to (Mb,x1,c)")
     new_values = values.copy()
     new_values["Mb"] = -2.5 * np.log10(values["x0"]) + M0
     new_covs = {
@@ -60,12 +64,14 @@ def X0X1C_to_MbX1C(values, cov, M0=10.501612):
         )
         for i in values.index
     }
+    logger.log(logging.INFO, "Done")
     return new_values, new_covs
 
 
 def sncosmo_to_edris(
     res, data, index, interest_vars=["x1", "c"], n_bins=10, M0=10.501612
 ):
+    logger.log(logging.INFO, "Creating input variables for edris")
     n = len(index)
 
     covariances = {
@@ -86,19 +92,18 @@ def sncosmo_to_edris(
     values, cov = X0X1C_to_MbX1C(stacked_res, covariances, M0=M0)
 
     full_matrix = block_diag(*[cov[i] for i in cov.keys()])
-    k = len(interest_vars) + 1
     full_cov_sorted = full_matrix[
         :,
         [
-            *[k * i for i in range(n)],
-            *[k * i + 1 for i in range(n)],
-            *[k * i + 2 for i in range(n)],
+            *[3 * i for i in range(n)],
+            *[3 * i + 1 for i in range(n)],
+            *[3 * i + 2 for i in range(n)],
         ],
     ][
         [
-            *[k * i for i in range(n)],
-            *[k * i + 1 for i in range(n)],
-            *[k * i + 2 for i in range(n)],
+            *[3 * i for i in range(n)],
+            *[3 * i + 1 for i in range(n)],
+            *[3 * i + 2 for i in range(n)],
         ],
         :,
     ]
@@ -114,6 +119,7 @@ def sncosmo_to_edris(
         "z": jnp.array(data.loc[index]["z"].to_list()),
         "z_bins": edris.tools.log_bins(data.loc[index]["z"].min() - 1e-4, 0.06, n_bins),
     }
+    logger.log(logging.INFO, "Done")
     return exp, cov, obs
 
 
