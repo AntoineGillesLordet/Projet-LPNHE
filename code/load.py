@@ -6,6 +6,8 @@ from glob import glob
 import pickle
 import healpy
 from tqdm import tqdm
+from .logging import logger
+import logging
 
 
 def load_bgs(
@@ -22,15 +24,15 @@ def load_bgs(
             .difference({"status", "in_desi"})
             .issubset(set(df.columns))
         ):
-            print(f"Found file {filepath} with columns {df.columns}")
+            logger.log(logging.INFO, f"Found file {filepath} with columns {df.columns}")
             return df
         else:
-            print(
+            logger.log(logging.INFO,
                 f"Found file {filepath} with columns {df.columns} but columns {columns} were prompted, defaulting to fits file"
             )
             raise IndexError
     except IndexError:
-
+        logger.log(logging.INFO, "Reading BGS data from fits file")
         if path is None:
             path = "/global/cfs/cdirs/desi/cosmosim/FirstGenMocks/Uchuu/LightCone/BGS_v2/BGS_LC_Uchuu.fits"
 
@@ -47,11 +49,12 @@ def load_bgs(
         if in_desi and "status" in df.columns:
             df["in_desi"] = df["status"] & 2**1 != 0
             df.drop(columns=["status"], inplace=True)
-
+    logger.log(logging.INFO, "Done")
     return df[df["in_desi"]]
 
 
 def extract_ztf(start_time=58179, end_time=59215):
+    logger.log(logging.INFO, "Loading ZTF survey")
     with open("data/ztf_survey.pkl", "rb") as file:
         survey = pickle.load(file)
     survey.set_data(
@@ -67,14 +70,15 @@ def load_maps(
     bgs_nside=128,
     F=0.1,
 ):
+    logger.log(logging.INFO, "Loading ZTF skymap and BGS redshift distribution")
     try:
-        map_ = healpy.read_map()
+        map_ = healpy.read_map(ztf_path)
 
-        with open("data/bgs_redshifts_map.pkl", "rb") as fp:
+        with open(bgs_pix_path, "rb") as fp:
             bgs_redshifts = pickle.load(fp)
 
     except FileNotFoundError:
-        print("File missing, computing them again and saving...")
+        logger.log(logging.INFO, "Maps file missing, computing them again and saving")
 
         # Initial SN density skymap
         ztf_sn = pandas.read_csv("data/data_ztf.csv", index_col=0)
@@ -133,6 +137,7 @@ def load_maps(
 
         with open("data/bgs_redshifts_map.pkl", "wb") as fp:
             pickle.dump(bgs_redshifts, fp)
+        logger.log(logging.INFO, "Done")
 
     finally:
         return map_, bgs_redshifts
