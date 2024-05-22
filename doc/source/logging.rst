@@ -1,7 +1,7 @@
 :mod:`logging` -- Logger definition
 ===================================
 
-.. automodule:: code.logging
+.. automodule:: src.logging
    :members:
    :undoc-members:
    :special-members:

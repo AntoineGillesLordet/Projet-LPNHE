@@ -6,7 +6,7 @@ SN generation based on the ``skysurvey`` package using information from the Uchu
 Uchuu only
 ----------
 
-.. automodule:: code.sample_Uchuu
+.. automodule:: src.sample_Uchuu
    :members:
    :undoc-members:
    :special-members:
@@ -14,7 +14,7 @@ Uchuu only
 Uchuu redshift with ZTF angular distribution
 --------------------------------------------
 
-.. automodule:: code.ztfXuchuu
+.. automodule:: src.ztfXuchuu
    :members:
    :undoc-members:
    :special-members:

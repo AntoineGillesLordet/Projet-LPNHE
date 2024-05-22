@@ -15,9 +15,9 @@ sys.path.insert(0, os.path.abspath("../../code/"))
 
 # -- Project information -----------------------------------------------------
 
-project = 'Uchuu X ZTF'
-copyright = '2024, Antoine Gilles--Lordet'
-author = 'Antoine Gilles--Lordet'
+project = "Uchuu X ZTF"
+copyright = "2024, Antoine Gilles--Lordet"
+author = "Antoine Gilles--Lordet"
 
 # -- Project information -----------------------------------------------------
 
@@ -30,7 +30,7 @@ extensions = [
 templates_path = ["templates/"]
 
 html_static_path = ["_static"]
-exclude_patterns = [".build/*", "templates/*", ".ipynb_checkpoints/*"]
+exclude_patterns = [".build/*", "templates/*", ".ipynb_checkpoints/*", "ext/*.rst"]
 
 html_theme = "sphinx_rtd_theme"
 napoleon_google_docstring = False

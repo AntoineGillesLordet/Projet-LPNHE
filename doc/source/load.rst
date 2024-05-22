@@ -1,7 +1,7 @@
 :mod:`load` -- Loading BGS, ZTF logs and others
 ===============================================
 
-.. automodule:: code.load
+.. automodule:: src.load
    :members:
    :undoc-members:
    :special-members:

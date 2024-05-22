@@ -1,7 +1,7 @@
 :mod:`fit` -- Fitting functions using ``skysurvey`` and ``edris``
 =================================================================
 
-.. automodule:: code.fit
+.. automodule:: src.fit
    :members:
    :undoc-members:
    :special-members:

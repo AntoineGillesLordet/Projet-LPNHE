@@ -5,14 +5,14 @@ Documentation of my end-of-year internship project at LPNHE
 
 .. toctree::
    :maxdepth: 2
-   :caption: Files:
+   :caption: Code structure
 
-    load
-    sampling
-    fit
-    tools
-    logging
-    plot
+   load
+   sampling
+   fit
+   tools
+   logging
+   plot
 
 Indices and tables
 ==================

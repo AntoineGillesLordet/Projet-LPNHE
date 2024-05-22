@@ -1,7 +1,7 @@
 :mod:`plot` -- Visualisation functions
 =====================================================
 
-.. automodule:: code.plot
+.. automodule:: src.plot
    :members:
    :undoc-members:
    :special-members:
