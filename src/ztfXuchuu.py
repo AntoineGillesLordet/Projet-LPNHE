@@ -5,10 +5,10 @@ import numpy as np
 import healpy
 from scipy.stats import gaussian_kde
 
-from .load import load_bgs
+from .load import load_maps
 
 
-def rand_ztf_positions(maps, size=1, zcut=0.1):
+def rand_ztf_positions(maps, size=1, zcut=0.1, nside=128):
     ztf_map, bgs_redshifts = maps
     ztf_nside = healpy.npix2nside(len(ztf_map))
     bgs_nside = healpy.npix2nside(len(bgs_nside))
@@ -17,8 +17,9 @@ def rand_ztf_positions(maps, size=1, zcut=0.1):
         np.arange(healpy.nside2npix(nside)), size=size, p=ztf_map
     )
 
-    bgs_sampled_pix = healpy.ang2pix(bgs_nside, *healpy.pix2ang(ztf_nside, spl))
+    bgs_sampled_pix = healpy.ang2pix(bgs_nside, *healpy.pix2ang(ztf_nside, sampled_pix))
 
+    ra, dec, z = [], [], []
     for angpix, zpix in zip(sampled_pix, bgs_sampled_pix):
         new_ra, new_dec = draw_from_pixel(angpix, ztf_nside)
         ra.append(new_ra)
@@ -62,27 +63,29 @@ class SNeIa_ZTF_like(Transient):
     _TEMPLATE = "salt2"
     _RATE = 2.35 * 10**4  # Perley 2020
 
-    # {'model': func, 'prop': dict, 'input':, 'as':}
-    _MODEL = dict(
-        redshift={"kwargs": {"zmax": 0.2}},
-        x1={"func": SNeIaStretch.nicolas2021},
-        c={"func": SNeIaColor.intrinsic_and_dust},
-        magabs={
-            "func": SNeIaMagnitude.tripp1998,
-            "kwargs": {"x1": "@x1", "c": "@c", "mabs": -19.3, "sigmaint": 0.10},
-        },
-        magobs={
-            "func": "magabs_to_magobs",  # defined in Target (mother of Transients)
-            "kwargs": {"z": "@z", "magabs": "@magabs"},
-        },
-        x0={
-            "func": "magobs_to_amplitude",  # defined in Transients
-            "kwargs": {"magobs": "@magobs", "param_name": "x0"},
-        },  # because it needs to call sncosmo_model.get(param_name)
-        radecz={
-            "func": rand_ztf_positions,
-            "kwargs": {"maps": load_maps(), "zcut": 0.06},
-            "as": ["ra", "dec", "z", "t0"],
-        },
-        mwebv={"func": dust.get_mwebv, "kwargs": {"ra": "@ra", "dec": "@dec"}},
-    )
+    def __init__(self, Uchuu_path=None):
+        # {'model': func, 'prop': dict, 'input':, 'as':}
+        super(SNeIa_ZTF_like, self).__init__()
+        self.model = dict(
+            redshift={"kwargs": {"zmax": 0.2}},
+            x1={"func": SNeIaStretch.nicolas2021},
+            c={"func": SNeIaColor.intrinsic_and_dust},
+            magabs={
+                "func": SNeIaMagnitude.tripp1998,
+                "kwargs": {"x1": "@x1", "c": "@c", "mabs": -19.3, "sigmaint": 0.10},
+            },
+            magobs={
+                "func": "magabs_to_magobs",  # defined in Target (mother of Transients)
+                "kwargs": {"z": "@z", "magabs": "@magabs"},
+            },
+            x0={
+                "func": "magobs_to_amplitude",  # defined in Transients
+                "kwargs": {"magobs": "@magobs", "param_name": "x0"},
+            },  # because it needs to call sncosmo_model.get(param_name)
+            radecz={
+                "func": rand_ztf_positions,
+                "kwargs": {"maps": load_maps(Uchuu_path), "zcut": 0.06},
+                "as": ["ra", "dec", "z", "t0"],
+            },
+            mwebv={"func": dust.get_mwebv, "kwargs": {"ra": "@ra", "dec": "@dec"}},
+        )

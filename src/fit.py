@@ -22,7 +22,7 @@ def fit_lc(dset, index, savefile=None, **kwargs):
     * ``c`` is fitted in ``[-0.8;1.0]``
     * ``x0`` is fitted in ``[-0.8;0.8]``
     * ``x1`` is fitted in ``[-6.0;6.0]``
-    
+
     Parameters
     ----------
     dset : skysurvey.DataSet
@@ -34,7 +34,7 @@ def fit_lc(dset, index, savefile=None, **kwargs):
         Default ``None`` means not saving.
     **kwargs : Any
         All kwargs are passed to ``dset.fit_lightcurves``.
-    
+
     Return
     ------
     results : pandas.Dataframe
@@ -42,7 +42,7 @@ def fit_lc(dset, index, savefile=None, **kwargs):
     meta : dict list
         Metadata of the fits, the key ``success`` flags fits that converged
     """
-    
+
     logger.log(logging.INFO, f"Running LC fit")
     data = dset.targets.data.loc[index].copy()
     fixed = {"z": data["z"]}
@@ -60,7 +60,7 @@ def fit_lc(dset, index, savefile=None, **kwargs):
         "x1": data["x1"].apply(lambda x: [-6, 6]),
     }
 
-    params = dict(phase_fitrange=[-40,130], maxcall=10000)
+    params = dict(phase_fitrange=[-40, 130], maxcall=10000)
     params.update(kwargs)
 
     results, meta = dset.fit_lightcurves(
@@ -70,7 +70,7 @@ def fit_lc(dset, index, savefile=None, **kwargs):
         fixedparams=fixed,
         guessparams=guess,
         bounds=bounds,
-        **params
+        **params,
     )
 
     if savefile:
@@ -87,7 +87,7 @@ def fit_lc(dset, index, savefile=None, **kwargs):
 def run_edris(obs, cov, exp, **kwargs):
     """
     Computes the starting point and run edris
-    
+
     Parameters
     ----------
     obs : edris.Obs
@@ -96,7 +96,7 @@ def run_edris(obs, cov, exp, **kwargs):
         Covariance matrix of the previous parameters (magnitudes and standardisation variables)
     exp : dict
         Explanatory variables. Should contain the redshifts of the SN in ``z`` and the redshift bins in ``z_bins``.
-        
+
     Return
     ------
     res : dict
@@ -108,30 +108,35 @@ def run_edris(obs, cov, exp, **kwargs):
     iter_params : list
         Parameters at each iterations
     """
-    
+
     logger.log(logging.INFO, "Computing starting point")
-    
+
     x0 = {
-          'mu_bins':jnp.zeros(len(exp['z_bins'])),
-          'coef':jnp.array([-0.14,3.15]),
-          'variables':jnp.array(obs.variables.reshape((2,-1 ))),
-         }
+        "mu_bins": jnp.zeros(len(exp["z_bins"])),
+        "coef": jnp.array([-0.14, 3.15]),
+        "variables": jnp.array(obs.variables.reshape((2, -1))),
+    }
     delta_mu = obs.mag - edris.models.sn1a_model(x0, exp).mag
-    interpol_matrix = edris.tools.linear_interpolation_matrix(jnp.log10(exp['z']), jnp.log10(exp['z_bins']))
-    mu_start = jnp.linalg.solve(jnp.dot(interpol_matrix.T, interpol_matrix), jnp.dot(interpol_matrix.T, delta_mu))
-    x0['mu_bins'] = mu_start
-    
-    L = lambda x: restrict(likelihood, {'sigma_int':0.1,})(
-        x, exp, cov, obs, cosmo=binned_cosmo, truncated=False, restricted=False
+    interpol_matrix = edris.tools.linear_interpolation_matrix(
+        jnp.log10(exp["z"]), jnp.log10(exp["z_bins"])
     )
-    params = dict(niter=1000,
-                  lmbda=1e4,
-                  tol=1e-2,
-                  max_iter_tncg=None)
+    mu_start = jnp.linalg.solve(
+        jnp.dot(interpol_matrix.T, interpol_matrix),
+        jnp.dot(interpol_matrix.T, delta_mu),
+    )
+    x0["mu_bins"] = mu_start
+
+    L = lambda x: restrict(
+        likelihood,
+        {
+            "sigma_int": 0.1,
+        },
+    )(x, exp, cov, obs, cosmo=binned_cosmo, truncated=False, restricted=False)
+    params = dict(niter=1000, lmbda=1e4, tol=1e-2, max_iter_tncg=None)
     params.update(kwargs)
 
     logger.log(logging.INFO, f"Running edris with parameters {kwargs}")
     res, loss, lmbda, iter_params = tncg(L, x0, **params)
     logger.log(logging.INFO, "Done")
-    
+
     return res, hessian(L)(res), loss, iter_params

@@ -73,19 +73,41 @@ def scatter_3d(x, y, z, bins=50):
     ax.elev = 30
 
 
-
 def plot_lc(dset, i, better_results=None, fig=None, **kwargs):
     _ = dset.show_target_lightcurve(index=i, s=8, fig=fig, **kwargs)
     plt.ylim(-200)
     target = dset.targets.data.loc[i]
-    plt.axvline(Time(target["t0"], format="mjd").datetime, label=r'True $t_0$')
+    plt.axvline(Time(target["t0"], format="mjd").datetime, label=r"True $t_0$")
     if better_results:
-        plt.axvline(Time(better_results.loc[i]["t0"], format="mjd").datetime, linestyle='--', c='darkblue', alpha=0.4, label = r'Fitted $t_0$')
+        plt.axvline(
+            Time(better_results.loc[i]["t0"], format="mjd").datetime,
+            linestyle="--",
+            c="darkblue",
+            alpha=0.4,
+            label=r"Fitted $t_0$",
+        )
 
-        plt.axvline(Time(better_results.loc[i]["t0"] + better_results.loc[i]["err_t0"] , format="mjd").datetime, c='k', linestyle='dotted', label = r'$\sigma_{t_0}$')
-        plt.axvline(Time(better_results.loc[i]["t0"] - better_results.loc[i]["err_t0"] , format="mjd").datetime, c='k', linestyle='dotted')
+        plt.axvline(
+            Time(
+                better_results.loc[i]["t0"] + better_results.loc[i]["err_t0"],
+                format="mjd",
+            ).datetime,
+            c="k",
+            linestyle="dotted",
+            label=r"$\sigma_{t_0}$",
+        )
+        plt.axvline(
+            Time(
+                better_results.loc[i]["t0"] - better_results.loc[i]["err_t0"],
+                format="mjd",
+            ).datetime,
+            c="k",
+            linestyle="dotted",
+        )
 
-    
-    plt.xlim(Time(target["t0"]-50, format="mjd").datetime, Time(target["t0"] +100, format="mjd").datetime)
+    plt.xlim(
+        Time(target["t0"] - 50, format="mjd").datetime,
+        Time(target["t0"] + 100, format="mjd").datetime,
+    )
     plt.legend()
     plt.title(f"Target {i}")

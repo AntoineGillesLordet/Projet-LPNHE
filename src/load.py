@@ -27,8 +27,9 @@ def load_bgs(
             logger.log(logging.INFO, f"Found file {filepath} with columns {df.columns}")
             return df
         else:
-            logger.log(logging.INFO,
-                f"Found file {filepath} with columns {df.columns} but columns {columns} were prompted, defaulting to fits file"
+            logger.log(
+                logging.INFO,
+                f"Found file {filepath} with columns {df.columns} but columns {columns} were prompted, defaulting to fits file",
             )
             raise IndexError
     except IndexError:
