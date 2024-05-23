@@ -65,8 +65,8 @@ class SNeIa_ZTF_like(Transient):
 
     def __init__(self, Uchuu_path=None):
         # {'model': func, 'prop': dict, 'input':, 'as':}
-        super(SNeIa_ZTF_like, self).__init__()
-        self.model = dict(
+        super().__init__()
+        self.set_model(dict(
             redshift={"kwargs": {"zmax": 0.2}},
             x1={"func": SNeIaStretch.nicolas2021},
             c={"func": SNeIaColor.intrinsic_and_dust},
@@ -88,4 +88,4 @@ class SNeIa_ZTF_like(Transient):
                 "as": ["ra", "dec", "z", "t0"],
             },
             mwebv={"func": dust.get_mwebv, "kwargs": {"ra": "@ra", "dec": "@dec"}},
-        )
+        ))

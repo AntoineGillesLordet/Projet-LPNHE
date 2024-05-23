@@ -23,8 +23,9 @@ class SNeIa_full_bgs(Transient):
     _RATE = 2.35 * 10**4  # Perley 2020
 
     def __init__(self, path=None):
+        super().__init__()
         # {'model': func, 'prop': dict, 'input':, 'as':}
-        self.model = dict(
+        self.set_model(dict(
             redshift={"kwargs": {"zmax": 0.2}},
             x1={"func": SNeIaStretch.nicolas2021},
             c={"func": SNeIaColor.intrinsic_and_dust},
@@ -47,4 +48,4 @@ class SNeIa_full_bgs(Transient):
                 "as": ["ra", "dec", "z"],
             },
             mwebv={"func": dust.get_mwebv, "kwargs": {"ra": "@ra", "dec": "@dec"}},
-        )
+        ))
