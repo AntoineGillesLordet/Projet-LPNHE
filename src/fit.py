@@ -1,12 +1,17 @@
 import numpy as np
 import pickle
 from edris.tools import linear_interpolation_matrix, restrict
-from edris.models import likelihood, binned_cosmo
+from edris.models import likelihood, binned_cosmo, sn1a_model
 from edris.minimize import tncg
 import jax.numpy as jnp
 from jax import hessian
 from .logging import logging, logger
 import sncosmo
+from scipy.interpolate import interp1d
+from astropy.constants import c
+from scipy.integrate import quad
+from astropy.cosmology import Planck18 as cosmo
+from scipy.optimize import curve_fit
 
 try:
     from tqdm.auto import tqdm
@@ -18,10 +23,10 @@ def fit_lc(dset, index, savefile=None, **kwargs):
     """
     Fit lightcurves using the SALT2 model with skysurvey/sncosmo using the following bounds:
     * ``z`` is fixed
-    * ``t0`` is fitted in ``[t0_true-20 ; t0_true+30]``
-    * ``c`` is fitted in ``[-0.8;1.0]``
-    * ``x0`` is fitted in ``[-0.8;0.8]``
-    * ``x1`` is fitted in ``[-6.0;6.0]``
+    * ``t0`` is fitted in ``[t0_true-10 ; t0_true+30]``
+    * ``c`` is fitted in ``[-3;3]``
+    * ``x0`` is fitted in ``[-0.1;10]``
+    * ``x1`` is fitted in ``[-5;5]``
 
     Parameters
     ----------
@@ -44,23 +49,23 @@ def fit_lc(dset, index, savefile=None, **kwargs):
     """
 
     logger.log(logging.INFO, f"Running LC fit")
-    data = dset.targets.data.loc[index].copy()
-    fixed = {"z": data["z"]}
+    fixed = {
+        "z": dset.targets.data.loc[index, "z"],
+        "t0": dset.targets.data.loc[index, "t0"],
+    }
 
     guess = {
-        "t0": data["t0"],
-        "c": data["c"],
-        "x0": data["x0"],
-        "x1": data["x1"],
+        "c": dset.targets.data.loc[index, "c"],
+        "x0": dset.targets.data.loc[index, "x0"],
+        "x1": dset.targets.data.loc[index, "x1"],
     }
     bounds = {
-        "t0": data["t0"].apply(lambda x: [x - 20, x + 30]),
-        "c": data["c"].apply(lambda x: [-0.8, 1.0]),
-        "x0": data["x0"].apply(lambda x: [-0.8, 0.8]),
-        "x1": data["x1"].apply(lambda x: [-6, 6]),
+    "c": [[-3, 3]]*len(index),
+    "x0": [[-.1, 10]]*len(index),
+    "x1": [[-5, 5]]*len(index),
     }
 
-    params = dict(phase_fitrange=[-40, 130], maxcall=10000)
+    params = dict(phase_fitrange=[-50, 200], maxcall=10000, modelcov=True)
     params.update(kwargs)
 
     results, meta = dset.fit_lightcurves(
@@ -72,6 +77,10 @@ def fit_lc(dset, index, savefile=None, **kwargs):
         bounds=bounds,
         **params,
     )
+    dset.targets.data['converged'] = False
+
+    for i in index:
+        dset.targets.data.loc[i,'converged'] = meta[(i,"success")]
 
     if savefile:
         logger.log(logging.INFO, "Saving")
@@ -80,7 +89,7 @@ def fit_lc(dset, index, savefile=None, **kwargs):
             pickle.dump(dset.targets.data, f)
             pickle.dump(results, f)
             pickle.dump(meta, f)
-    logger.log(logging.INFO, "Done")
+            logger.log(logging.INFO, "Done")
     return results, meta
 
 
@@ -116,8 +125,8 @@ def run_edris(obs, cov, exp, **kwargs):
         "coef": jnp.array([-0.14, 3.15]),
         "variables": jnp.array(obs.variables.reshape((2, -1))),
     }
-    delta_mu = obs.mag - edris.models.sn1a_model(x0, exp).mag
-    interpol_matrix = edris.tools.linear_interpolation_matrix(
+    delta_mu = obs.mag - sn1a_model(x0, exp).mag
+    interpol_matrix = linear_interpolation_matrix(
         jnp.log10(exp["z"]), jnp.log10(exp["z_bins"])
     )
     mu_start = jnp.linalg.solve(
@@ -135,8 +144,31 @@ def run_edris(obs, cov, exp, **kwargs):
     params = dict(niter=1000, lmbda=1e4, tol=1e-2, max_iter_tncg=None)
     params.update(kwargs)
 
-    logger.log(logging.INFO, f"Running edris with parameters {kwargs}")
+    logger.log(logging.INFO, f"Running edris with parameters {params}")
     res, loss, lmbda, iter_params = tncg(L, x0, **params)
     logger.log(logging.INFO, "Done")
 
     return res, hessian(L)(res), loss, iter_params
+
+
+def fit_cosmo(z_bins, mu_bins, cov):
+    logger.log(logging.INFO, "Fitting cosmology to edris result")
+    def dist(z, Omega_r, Omega_m, Omega_l, H0):
+        Omega_k = 1. - Omega_m - Omega_l - Omega_r
+        return quad(lambda z1 : (Omega_m*(1+z1)**3 + Omega_r*(1+z1)**4 + Omega_k*(1+z1)**2 + Omega_l)**(-0.5)*c.value*10**(-3)/H0, 0, z)
+
+    dist_vec = np.vectorize(dist)
+
+    def z_to_mag(z, Omega_m, Omega_r=cosmo.Ogamma0 + cosmo.Onu0, Omega_l=cosmo.Ode0, H0=cosmo.H0.value):
+        return 5.0 * np.log10(abs((z + 1.0) * dist_vec(z, Omega_r, Omega_m, Omega_l, H0)[0])) + 25 -19.3
+
+    popt, pcov, = curve_fit(z_to_mag,
+                           z_bins,
+                           mu_bins,
+                           sigma=cov,
+                           p0=[0.3],
+                           bounds=([0.],[1.]),
+                          )
+    mag_to_z_cosmo = jnp.vectorize(interp1d(z_to_mag(np.linspace(1e-6, 0.1, 10000), *popt), np.linspace(1e-6, 0.1,10000)), signature='(k)->(k)')
+
+    return popt, pcov, mag_to_z_cosmo, z_to_mag
