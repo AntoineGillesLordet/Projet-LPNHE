@@ -2,12 +2,14 @@ from scipy.linalg import block_diag
 from edris.models import FullCovariance, Obs
 import jax.numpy as jnp
 import numpy as np
-import edris
 import pandas
+
+from astropy.cosmology import Planck18 as cosmo
+from edris.tools import log_bins
 from .logging import logger, logging
 
 try:
-    from tqdm import tqdm
+    from tqdm.auto import tqdm
 except:
     tqdm = lambda x: x
 
@@ -23,7 +25,7 @@ def dset_sanitize_and_filter(dset, return_index=True):
     return_index : bool, optional
         If True, returns the index of the SN that will be fitted as a list, otherwise only the dset.targets.data dataframe will be updated
     """
-    logger.log(logging.INFO, "Cleaning skysurvey dataset")
+    logger.log(logging.INFO, "Correcting rate to observations and filtering based on observations")
 
     dset.data["detected"] = (dset.data["flux"] / dset.data["fluxerr"]) > 5
     dset.targets.data["keep"] = False
@@ -37,26 +39,26 @@ def dset_sanitize_and_filter(dset, return_index=True):
         obs_data = dset.data.loc[i]
         # Flags SN that were not observed to correct the rate
         dset.targets.data.loc[i, "keep"] = np.any(
-            obs_data["time"].between(target["t0"] - 10, target["t0"] + 25)
+            obs_data["time"].between(target["t0"] - 10, target["t0"] + 15)
         )
 
         dset.targets.data.loc[i, "good"] = (
             dset.targets.data.loc[i, "keep"]  # SN should be observed
-            and np.any(
+            and np.sum(
                 [
                     np.sum(
                         obs_data[obs_data["detected"] & (obs_data["band"] == b)][
                             "time"
-                        ].between(target["t0"] - 40, target["t0"] + 130)
+                        ].between(target["t0"] - 30, target["t0"] + 100)
                     )
-                    >= 10
+                    >= 5
                     for b in bands
                 ]
-            )  # One band should have 10 data points
+            ) >= 2 # Two bands should have 5 or more data points
             and (
                 np.sum(
                     obs_data[obs_data["detected"]]["time"].between(
-                        target["t0"] - 40, target["t0"]
+                        target["t0"] - 30, target["t0"]
                     )
                 )
                 > 1
@@ -64,7 +66,7 @@ def dset_sanitize_and_filter(dset, return_index=True):
             and (
                 np.sum(
                     obs_data[obs_data["detected"]]["time"].between(
-                        target["t0"], target["t0"] + 130
+                        target["t0"], target["t0"] + 100
                     )
                 )
                 > 1
@@ -73,7 +75,7 @@ def dset_sanitize_and_filter(dset, return_index=True):
     logger.log(logging.INFO, "Done")
 
     if return_index:
-        return np.where(dset.targets.data["good"])[0]
+        return dset.targets.data[dset.targets.data["good"]].index
 
 
 def X0X1C_to_MbX1C(values, cov, M0=10.501612):
@@ -127,7 +129,13 @@ def X0X1C_to_MbX1C(values, cov, M0=10.501612):
 
 def sncosmo_to_edris(res, data, index, n_bins=10, M0=10.501612):
     """
-    Transforms a skysurvey/sncosmo output to an edris input.
+    Transforms a skysurvey/sncosmo output to an edris input, and filters SN using standard cuts.
+    
+    SN kept have :
+    * abs(c) < 0.3
+    * err_c < 0.07
+    * abs(x1) + err_x1 < 5
+
 
     Parameters
     ----------
@@ -196,12 +204,24 @@ def sncosmo_to_edris(res, data, index, n_bins=10, M0=10.501612):
     mag = jnp.array(values["Mb"].to_list())
     obs = Obs(mag, var)
 
+    goods = (
+        (jnp.sqrt(jnp.diag(cov.C_xx[n:, n:])) < 0.07)
+        & (abs(obs.variables[n:]) < 0.3)
+        & (jnp.sqrt(jnp.diag(cov.C_xx[:n, :n])) + jnp.abs(obs.variables[:n]) < 5)
+    )
+    obs.mag = obs.mag[goods]
+    obs.variables = obs.variables[jnp.tile(goods, 2)]
+    cov_sel = cov.select(goods)
+    
+    data['used_edris'] = False
+    data.loc[data[data['converged']].index[goods], 'used_edris'] = True
+    
     exp = {
-        "z": jnp.array(data.loc[index]["z"].to_list()),
-        "z_bins": edris.tools.log_bins(data.loc[index]["z"].min() - 1e-4, 0.06, n_bins),
+        "z": jnp.array(data[data['used_edris']]["z"].to_list()),
+        "z_bins": log_bins(data[data['used_edris']]["z"].min() - 1e-4, 0.06, n_bins),
     }
     logger.log(logging.INFO, "Done")
-    return exp, cov, obs
+    return exp, cov_sel, obs
 
 
 def get_cov_from_hess(hess, invcov=False):
@@ -250,13 +270,8 @@ def get_cov_from_hess(hess, invcov=False):
     return jnp.linalg.inv(0.5 * flatten_hessian)
 
 
-def edris_filter(obs, cov, exp):
+def edris_filter(exp, cov, obs, data):
     """
-    Filter edris explanatory variables, covariance and observation variables using standard cuts.
-    SN kept have :
-    * abs(c) < 0.3
-    * err_c < 0.07
-    * abs(x1) + err_x1 < 5
 
     Parameters
     ----------
@@ -290,5 +305,12 @@ def edris_filter(obs, cov, exp):
     obs.mag = obs.mag[goods]
     obs.variables = obs.variables[jnp.tile(goods, 2)]
     cov_sel = cov.select(goods)
+    
+    data['used_edris'] = False
+    data.loc[np.where(goods), 'used_edris'] = True
+    
+    return exp, cov_sel, obs
 
-    return obs, cov, exp
+
+def mag_Planck18(x):
+    return jnp.array(cosmo.distmod(np.array(x))) - 19.3
