@@ -13,6 +13,8 @@ def rand_positions(positions, size=1, weights=None, zcut=0.1):
         positions_.loc[index].reset_index()["ra"],
         positions_.loc[index].reset_index()["dec"],
         positions_.loc[index].reset_index()["z"],
+        np.array(index, dtype=int),
+        positions_.loc[index].reset_index()["z_cosmo"],
     )
 
 
@@ -20,7 +22,7 @@ class SNeIa_full_bgs(Transient):
 
     _KIND = "SNIa"
     _TEMPLATE = "salt2"
-    _RATE = 2.35 * 10**4  # Perley 2020
+    _RATE = 2.35 * 10**4  # /yr/Gpc^3 Perley 2020
 
     def __init__(self, path=None):
         super().__init__()
@@ -45,7 +47,8 @@ class SNeIa_full_bgs(Transient):
             radecz={
                 "func": rand_positions,
                 "kwargs": {"positions": load_bgs(path), "zcut": 0.06},
-                "as": ["ra", "dec", "z"],
+                "as": ["ra", "dec", "z", "bgs_id", "z_cosmo"],
             },
             mwebv={"func": dust.get_mwebv, "kwargs": {"ra": "@ra", "dec": "@dec"}},
         ))
+        
