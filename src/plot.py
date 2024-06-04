@@ -106,7 +106,7 @@ def plot_lc(dset, i, better_results=None, fig=None, **kwargs):
         )
 
     plt.xlim(
-        Time(target["t0"] - 50, format="mjd").datetime,
+        Time(target["t0"] - 20, format="mjd").datetime,
         Time(target["t0"] + 100, format="mjd").datetime,
     )
     plt.legend()
