@@ -23,7 +23,7 @@ def fit_lc(dset, index, savefile=None, **kwargs):
     """
     Fit lightcurves using the SALT2 model with skysurvey/sncosmo using the following bounds:
     * ``z`` is fixed
-    * ``t0`` is fitted in ``[t0_true-10 ; t0_true+30]``
+    * ``t0`` is fitted in ``[t0_true-15 ; t0_true+30]``
     * ``c`` is fitted in ``[-3;3]``
     * ``x0`` is fitted in ``[-0.1;10]``
     * ``x1`` is fitted in ``[-5;5]``
@@ -51,25 +51,28 @@ def fit_lc(dset, index, savefile=None, **kwargs):
     logger.log(logging.INFO, f"Running LC fit")
     fixed = {
         "z": dset.targets.data.loc[index, "z"],
-        "t0": dset.targets.data.loc[index, "t0"],
+        "mwebv": dset.targets.data.loc[index, "mwebv"],
+        "mwr_v": [3.1]*len(index),
     }
 
     guess = {
+        "t0": dset.targets.data.loc[index, "t0"],
         "c": dset.targets.data.loc[index, "c"],
         "x0": dset.targets.data.loc[index, "x0"],
         "x1": dset.targets.data.loc[index, "x1"],
     }
     bounds = {
-    "c": [[-3, 3]]*len(index),
-    "x0": [[-.1, 10]]*len(index),
-    "x1": [[-5, 5]]*len(index),
+        "t0": dset.targets.data.loc[index, "t0"].apply(lambda x : [x-15, x+30]),
+        "c": [[-3, 3]]*len(index),
+        "x0": [[-.1, 10]]*len(index),
+        "x1": [[-5, 5]]*len(index),
     }
 
-    params = dict(phase_fitrange=[-50, 200], maxcall=10000, modelcov=True)
+    params = dict(phase_fitrange=[-40, 80], maxcall=10000, modelcov=True)
     params.update(kwargs)
 
     results, meta = dset.fit_lightcurves(
-        source=sncosmo.Model("salt2"),
+        source=dset.targets._template._sncosmo_model,
         index=index,
         use_dask=False,
         fixedparams=fixed,
@@ -159,15 +162,15 @@ def fit_cosmo(z_bins, mu_bins, cov):
 
     dist_vec = np.vectorize(dist)
 
-    def z_to_mag(z, Omega_m, Omega_r=cosmo.Ogamma0 + cosmo.Onu0, Omega_l=cosmo.Ode0, H0=cosmo.H0.value):
-        return 5.0 * np.log10(abs((z + 1.0) * dist_vec(z, Omega_r, Omega_m, Omega_l, H0)[0])) + 25 -19.3
+    def z_to_mag(z, Omega_m, Mb, Omega_r=cosmo.Ogamma0 + cosmo.Onu0, Omega_l=cosmo.Ode0, H0=cosmo.H0.value):
+        return 5.0 * np.log10(abs((z + 1.0) * dist_vec(z, Omega_r, Omega_m, Omega_l, H0)[0])) + Mb
 
     popt, pcov, = curve_fit(z_to_mag,
                            z_bins,
                            mu_bins,
                            sigma=cov,
-                           p0=[0.3],
-                           bounds=([0.],[1.]),
+                           p0=[0.3, 25-19.3],
+                           bounds=([0., 0.],[1., ]),
                           )
     mag_to_z_cosmo = jnp.vectorize(interp1d(z_to_mag(np.linspace(1e-6, 0.1, 10000), *popt), np.linspace(1e-6, 0.1,10000)), signature='(k)->(k)')
 
