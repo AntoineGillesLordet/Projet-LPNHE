@@ -73,11 +73,13 @@ def scatter_3d(x, y, z, bins=50):
     ax.elev = 30
 
 
-def plot_lc(dset, i, better_results=None, fig=None, **kwargs):
-    _ = dset.show_target_lightcurve(index=i, s=8, fig=fig, **kwargs)
+def plot_lc(dset, i, better_results=None, **kwargs):
+    params=dict(phase_window=[-40, 80], fig=fig)
+    params.update(kwargs)
+    _ = dset.show_target_lightcurve(index=i, s=8, **params)
     plt.ylim(-200)
     target = dset.targets.data.loc[i]
-    plt.axvline(Time(target["t0"], format="mjd").datetime, label=r"True $t_0$")
+    plt.axvline(Time(target["t0"], format="mjd").datetime, label=r"$t_0$")
     if better_results:
         plt.axvline(
             Time(better_results.loc[i]["t0"], format="mjd").datetime,
@@ -105,9 +107,5 @@ def plot_lc(dset, i, better_results=None, fig=None, **kwargs):
             linestyle="dotted",
         )
 
-    plt.xlim(
-        Time(target["t0"] - 20, format="mjd").datetime,
-        Time(target["t0"] + 100, format="mjd").datetime,
-    )
     plt.legend()
     plt.title(f"Target {i}")
