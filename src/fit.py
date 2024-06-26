@@ -169,8 +169,8 @@ def fit_cosmo(z_bins, mu_bins, cov):
                            z_bins,
                            mu_bins,
                            sigma=cov,
-                           p0=[0.3, 25-19.3],
-                           bounds=([0., 0.],[1., ]),
+                           p0=[0.3],
+                           bounds=([0.],[1.]),
                           )
     mag_to_z_cosmo = jnp.vectorize(interp1d(z_to_mag(np.linspace(1e-6, 0.1, 10000), *popt), np.linspace(1e-6, 0.1,10000)), signature='(k)->(k)')
 
