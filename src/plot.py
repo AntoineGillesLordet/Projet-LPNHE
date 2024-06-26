@@ -4,7 +4,8 @@ import corner
 from scipy.spatial import cKDTree
 from scipy.ndimage import gaussian_filter
 from astropy.time import Time
-
+import matplotlib.cm as cm
+from matplotlib.colors import Normalize
 
 def corner_(data, var_names=None, fig=None, labels=None, title=None, **kwargs):
     params = dict(
@@ -50,7 +51,6 @@ def scatter_mollweide(data, ax=None, **kwargs):
     ax.scatter(
         (data["ra"] - 360 * (data["ra"] > 180)) * np.pi / 180,
         data["dec"] * np.pi / 180,
-        linestyle="",
         **params,
     )
 
@@ -69,14 +69,22 @@ def scatter_3d(x, y, z, bins=50):
     c = np.transpose(count, axes=[1, 0, 2]).flatten()[nn_id]
     fig, ax = plt.subplots(figsize=(10, 10), subplot_kw={"projection": "3d"})
     ax.scatter(x, y, z, c=c, s=0.5, alpha=0.1)
+    ax.set_xlabel('x')
+    ax.set_ylabel('y')
+    ax.set_zlabel('z')
     ax.azim = -45
     ax.elev = 30
 
+    cmap = cm.viridis
+    norm = Normalize(vmin=c.min(), vmax=c.max())
+    fig.colorbar(cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax, orientation='vertical')
+
+
 
 def plot_lc(dset, i, better_results=None, **kwargs):
-    params=dict(phase_window=[-40, 80], fig=fig)
+    params=dict(phase_window=[-40, 80])
     params.update(kwargs)
-    _ = dset.show_target_lightcurve(index=i, s=8, **params)
+    _ = dset.show_target_lightcurve(index=i, **params)
     plt.ylim(-200)
     target = dset.targets.data.loc[i]
     plt.axvline(Time(target["t0"], format="mjd").datetime, label=r"$t_0$")
