@@ -4,7 +4,7 @@ import jax.numpy as jnp
 import numpy as np
 import pandas
 
-from astropy.cosmology import Planck18 as cosmo
+from astropy.cosmology import Planck18, Planck15
 from edris.tools import log_bins
 from .logging import logger, logging
 
@@ -16,7 +16,7 @@ except:
 
 def dset_sanitize_and_filter(dset, return_index=True):
     """
-    Flags SN that are detected with the key ``keep`` and those that pass some cuts for lightcurve fitting with ``good``.
+    Flags SN that are detected with the key ``keep`` and those that pass some cuts for lightcurve fitting with ``valid``.
 
     Parameters
     ----------
@@ -29,7 +29,7 @@ def dset_sanitize_and_filter(dset, return_index=True):
 
     dset.data["detected"] = (dset.data["flux"] / dset.data["fluxerr"]) > 5
     dset.targets.data["keep"] = False
-    dset.targets.data["good"] = False
+    dset.targets.data["valid"] = False
 
     bands = np.unique(dset.data["band"])
 
@@ -42,7 +42,7 @@ def dset_sanitize_and_filter(dset, return_index=True):
             obs_data["time"].between(target["t0"] - 10, target["t0"] + 15)
         )
 
-        dset.targets.data.loc[i, "good"] = (
+        dset.targets.data.loc[i, "valid"] = (
             dset.targets.data.loc[i, "keep"]  # SN should be observed
             and np.sum(
                 [
@@ -75,7 +75,7 @@ def dset_sanitize_and_filter(dset, return_index=True):
     logger.log(logging.INFO, "Done")
 
     if return_index:
-        return dset.targets.data[dset.targets.data["good"]].index
+        return dset.targets.data[dset.targets.data["valid"]].index
 
 
 def X0X1C_to_MbX1C(values, cov, M0=10.501612):
@@ -313,4 +313,8 @@ def edris_filter(exp, cov, obs, data):
 
 
 def mag_Planck18(x):
-    return jnp.array(cosmo.distmod(np.array(x))) - 19.3
+    return jnp.array(Planck18.distmod(np.array(x))) - 19.3
+
+
+def mag_Planck15(x):
+    return jnp.array(Planck15.distmod(np.array(x))) - 19.3
