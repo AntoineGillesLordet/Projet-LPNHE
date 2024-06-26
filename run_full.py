@@ -1,4 +1,13 @@
 import argparse
+
+# Parser to get the run number
+
+parser = argparse.ArgumentParser(description="Take a SN sample from Uchuu, produce a survey with ZTF logs, fit the lightcurves using sncosmo and run edris. Also makes coffee")
+
+parser.add_argument("-i", "--run-id", dest="run_nb", help="Number of the run to append to directories and files", type=int)
+
+args = vars(parser.parse_args())
+
 import logging
 import numpy as np
 from src import (
@@ -25,15 +34,8 @@ import warnings
 from iminuit.warnings import IMinuitWarning
 warnings.filterwarnings('ignore', category=IMinuitWarning)
 
-# Parser to get the run number
 
-parser = argparse.ArgumentParser(description="Take a SN sample from Uchuu, produce a survey with ZTF logs, fit the lightcurves and run edris. Also makes coffee")
-
-parser.add_argument("-i", "--run-id", dest="run_nb", type=int)
-
-args = vars(parser.parse_args())
-
-dir_name = f"Run_{args['run_nb']:03d}"
+dir_name = f"Run_Abacus_{args['run_nb']:03d}"
 
 # ouptut directory and logger setup
 
@@ -66,8 +68,8 @@ else:
     logger.log(logging.INFO, "Reading survey")
     survey = extract_ztf()
 
-    logger.log(logging.INFO, "Generating SNe sample")
-    snia = SNeIa_full_bgs()
+    logger.log(logging.INFO, f"Generating SNe sample from Abacus {args['run_nb']:03d} sim")
+    snia = SNeIa_full_bgs(path=f"/global/cfs/cdirs/desi/cosmosim/FirstGenMocks/AbacusSummit/CutSky/BGS_v2/z0.200/cutsky_BGS_z0.200_AbacusSummit_base_c000_ph{args['run_nb']:03d}.fits")
     _ = snia.draw(tstart=survey.date_range[0], tstop=survey.date_range[1], inplace=True,  zmax=0.06)
     logger.log(logging.INFO, f"{len(snia.data)} SNe generated")
 
