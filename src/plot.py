@@ -7,6 +7,16 @@ from astropy.time import Time
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
 
+color_band = {"ztfi":"black",
+             "ztfr":"purple",
+             "ztfg":"cyan",
+             "megacam6::z":"blue",
+             "megacam6::r":"red",
+             "megacam6::g":"green",
+             "megacam6::i2":"orange",
+             }
+
+
 def corner_(data, var_names=None, fig=None, labels=None, title=None, **kwargs):
     params = dict(
         var_names=var_names,
@@ -79,41 +89,65 @@ def scatter_3d(x, y, z, bins=50):
     norm = Normalize(vmin=c.min(), vmax=c.max())
     fig.colorbar(cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax, orientation='vertical')
 
-
-
-def plot_lc(dset, i, better_results=None, **kwargs):
-    params=dict(phase_window=[-40, 80])
-    params.update(kwargs)
-    _ = dset.show_target_lightcurve(index=i, **params)
-    plt.ylim(-200)
-    target = dset.targets.data.loc[i]
-    plt.axvline(Time(target["t0"], format="mjd").datetime, label=r"$t_0$")
-    if better_results:
-        plt.axvline(
-            Time(better_results.loc[i]["t0"], format="mjd").datetime,
-            linestyle="--",
-            c="darkblue",
-            alpha=0.4,
-            label=r"Fitted $t_0$",
-        )
-
-        plt.axvline(
-            Time(
-                better_results.loc[i]["t0"] + better_results.loc[i]["err_t0"],
-                format="mjd",
-            ).datetime,
-            c="k",
-            linestyle="dotted",
-            label=r"$\sigma_{t_0}$",
-        )
-        plt.axvline(
-            Time(
-                better_results.loc[i]["t0"] - better_results.loc[i]["err_t0"],
-                format="mjd",
-            ).datetime,
-            c="k",
-            linestyle="dotted",
-        )
-
+def plot_lc_index(index, lc_data, sne_data=None):
+        
+    for lc_nb in np.unique(lc_data[(lc_data.sn==index) & (lc_data.valid==1)].lc):
+        lc = lc_data[(lc_data.lc==lc_nb) & (lc_data.valid==1)].sort_values(by='mjd')
+        band = np.array(lc.band)[0]
+        coef = 10 ** (-(lc["zp"] - 25) / 2.5)
+        plt.errorbar(lc["mjd"],
+                     lc["flux"]*coef,
+                     yerr=lc["fluxerr"]*coef,
+                     linestyle='',
+                     marker='.',
+                     color=color_band[band],
+                     label=band
+                    )
+    if sne_data is not None:
+        plt.axvline(sne_data.loc[index, "tmax"], color="purple", label=r"$t_0$")
+        plt.axvline(sne_data.loc[index, "tmax"] - sne_data.loc[index, "err_tmax"], color="purple", linestyle=":")
+        plt.axvline(sne_data.loc[index, "tmax"] + sne_data.loc[index, "err_tmax"], color="purple", linestyle=":")
+    
+    plt.title(f"SN {index}")
     plt.legend()
-    plt.title(f"Target {i}")
+    
+def _2D_cmap(x,y, renorm=True):
+    xx, yy = x.copy(), y.copy()
+    if renorm:
+        xx -= xx.min()
+        yy -= yy.min()
+        xx /= xx.max()
+        yy /= yy.max()
+    return np.array(list(zip(0.7*((xx.ravel()-1)**2 + (yy.ravel()-(1-0.5/np.sqrt(2)))**2),
+                               0.7*((xx.ravel())**2 + (yy.ravel()-(1-0.5/np.sqrt(2)))**2),
+                               ((xx.ravel()-0.5)**2 + (yy.ravel()+0.5)**2)/2.5))
+                   )
+
+def plot_flux_phwl(input_flux, model_flux, wl_rf, ph_rf, linthresh=1e-3):
+    fig, axs = plt.subplots(ncols=2, figsize=(20,10))
+    axs[0].scatter(input_flux,
+                   model_flux,
+                   marker='.',
+                   s=5,
+                   alpha=0.5,
+                   c=_2D_cmap(wl_rf, ph_rf, renorm=False)
+                  )
+    min_ = min(input_flux.min(), model_flux.min())
+    max_ = max(input_flux.max(), model_flux.max())
+    ext = max(np.abs(min_), np.abs(max_))
+    axs[0].plot([-ext, ext], [-ext, ext], 'k:')
+    axs[0].plot([-ext, ext], [ext, -ext], 'k:')
+    
+    if linthresh:
+        axs[0].set_yscale('symlog', linthresh=linthresh)
+        axs[0].set_xscale('symlog', linthresh=linthresh)
+    
+    axs[0].set_xlabel("Input Flux")
+    axs[0].set_ylabel("Model Flux")
+
+    wl_lin, ph_lin = np.meshgrid(np.linspace(2000, 9000, 1000), np.linspace(-20, 50, 1000))
+
+    axs[1].pcolormesh(wl_lin, ph_lin, _2D_cmap(wl_lin, ph_lin).reshape((1000,1000,3)))
+    axs[1].set_ylabel("Phase")
+    axs[1].set_xlabel("Wavelength")
+    axs[1].set_ylim((50, -20))
