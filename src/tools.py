@@ -4,7 +4,8 @@ import jax.numpy as jnp
 import numpy as np
 import pandas
 
-from astropy.cosmology import Planck18, Planck15
+from astropy.cosmology import Planck18
+from . import Planck15
 from edris.tools import log_bins
 from .logging import logger, logging
 
@@ -14,7 +15,7 @@ except:
     tqdm = lambda x: x
 
 
-def dset_sanitize_and_filter(dset, return_index=True):
+def dset_sanitize_and_filter(dset, return_index=True, all_pts=False):
     """
     Flags SN that are detected with the key ``keep`` and those that pass some cuts for lightcurve fitting with ``valid``.
 
@@ -27,7 +28,11 @@ def dset_sanitize_and_filter(dset, return_index=True):
     """
     logger.log(logging.INFO, "Correcting rate to observations and filtering based on observations")
 
-    dset.data["detected"] = (dset.data["flux"] / dset.data["fluxerr"]) > 5
+    if all_pts:
+        dset.data["detected"] = True
+    else:
+        dset.data["detected"] = (dset.data["flux"] / dset.data["fluxerr"]) > 5
+
     dset.targets.data["keep"] = False
     dset.targets.data["valid"] = False
 
@@ -218,7 +223,7 @@ def sncosmo_to_edris(res, data, index, n_bins=10, M0=10.501612):
     
     exp = {
         "z": jnp.array(data[data['used_edris']]["z"].to_list()),
-        "z_bins": log_bins(data[data['used_edris']]["z"].min() - 1e-4, 0.06, n_bins),
+        "z_bins": log_bins(data[data['used_edris']]["z"].min() - 1e-4, data[data['used_edris']]["z"].max() + 1e-2, n_bins),
     }
     logger.log(logging.INFO, "Done")
     return exp, cov_sel, obs
