@@ -1,10 +1,11 @@
 from skysurvey.target.snia import SNeIaMagnitude, SNeIaColor, SNeIaStretch
 from skysurvey.target import Transient
 from skysurvey.effects import milkyway
+from . import Planck15
 import sncosmo
 import numpy as np
 from .load import load_bgs
-
+from healpy import nside2pixarea, nside2npix, ang2pix
 
 def rand_positions(positions, size=1, weights=None, zcut=0.06):
     positions_ = positions[positions["z"] < zcut]
@@ -22,13 +23,15 @@ def rand_positions(positions, size=1, weights=None, zcut=0.06):
 class SNeIa_full_bgs(Transient):
 
     _KIND = "SNIa"
-    _RATE = 2.35 * 10**4  # /yr/Gpc^3 Perley 2020
+    _RATE = 2.35 * 10**4 # /yr/Gpc^3 Perley 2020
+    _COSMOLOGY = Planck15
 
     def __init__(self, path=None, filename="Uchuu.csv", date_range=[58179, 59215], zmax=0.06):
         super().__init__()
         # {'model': func, 'prop': dict, 'input':, 'as':}
+        self.galaxy_positions = load_bgs(path=path, filename=filename)
         self.set_model(dict(
-            redshift={"kwargs": {"zmax": 0.2}},
+            redshift={"kwargs": {"zmax": zmax}},
             x1={"func": SNeIaStretch.nicolas2021},
             c={"func": SNeIaColor.intrinsic_and_dust},
             t0={"func": np.random.uniform, "kwargs": {"low": date_range[0], "high": date_range[1]}},
@@ -46,7 +49,7 @@ class SNeIa_full_bgs(Transient):
             },  # because it needs to call sncosmo_model.get(param_name)
             radecz={
                 "func": rand_positions,
-                "kwargs": {"positions": load_bgs(path=path, filename=filename), 'zcut': zmax},
+                "kwargs": {"positions": self.galaxy_positions, 'zcut': zmax},
                 "as": ["ra", "dec", "z", "bgs_id", "z_cosmo"],
             },
             mwebv={"func": milkyway.get_mwebv, "kwargs": {"ra": "@ra", "dec": "@dec"}},
@@ -55,3 +58,16 @@ class SNeIa_full_bgs(Transient):
         source = sncosmo.SALT2Source(modeldir='./data/SALT_snf', m0file='nacl_m0_test.dat', m1file='nacl_m1_test.dat', clfile='nacl_color_law_test.dat')
         model= sncosmo.Model(source=source,effects=[sncosmo.CCM89Dust()],effect_names=['mw'],effect_frames=['obs'])
         self.set_template(model)
+        
+        nside=256
+        id_bgs = ang2pix(
+            theta=np.pi / 2 - self.galaxy_positions["dec"] * np.pi / 180,
+            phi=self.galaxy_positions["ra"] * np.pi / 180,
+            nside=nside,
+        )
+
+        mask = np.zeros(nside2npix(nside), dtype=bool)
+        for i in id_bgs:
+            mask[i] = True
+        # USE THIS AREA WHEN DRAWING
+        self.uchuu_area = np.sum(mask)*nside2pixarea(nside, degrees=True)
