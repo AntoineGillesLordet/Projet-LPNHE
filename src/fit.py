@@ -10,7 +10,6 @@ import sncosmo
 from scipy.interpolate import interp1d
 from astropy.constants import c
 from scipy.integrate import quad
-from astropy.cosmology import Planck18 as cosmo
 from scipy.optimize import curve_fit
 
 try:
@@ -19,7 +18,7 @@ except:
     tqdm = lambda x: x
 
 
-def fit_lc(dset, index, savefile=None, **kwargs):
+def fit_lc(dset, index, savefile=None, pets=False, **kwargs):
     """
     Fit lightcurves using the SALT2 model with skysurvey/sncosmo using the following bounds:
     * ``z`` is fixed
@@ -49,24 +48,44 @@ def fit_lc(dset, index, savefile=None, **kwargs):
     """
 
     logger.log(logging.INFO, f"Running LC fit")
-    fixed = {
-        "z": dset.targets.data.loc[index, "z"],
-        "mwebv": dset.targets.data.loc[index, "mwebv"],
-        "mwr_v": [3.1]*len(index),
-    }
+    if pets:
+        fixed = {
+            "z": dset.targets.data.loc[index, "z"],
+            "t0": dset.targets.data.loc[index, "t0"],
+            "mwebv": dset.targets.data.loc[index, "mwebv"],
+            "mwr_v": [3.1]*len(index),
+        }
 
-    guess = {
-        "t0": dset.targets.data.loc[index, "t0"],
-        "c": dset.targets.data.loc[index, "c"],
-        "x0": dset.targets.data.loc[index, "x0"],
-        "x1": dset.targets.data.loc[index, "x1"],
-    }
-    bounds = {
-        "t0": dset.targets.data.loc[index, "t0"].apply(lambda x : [x-15, x+30]),
-        "c": [[-3, 3]]*len(index),
-        "x0": [[-.1, 10]]*len(index),
-        "x1": [[-5, 5]]*len(index),
-    }
+        guess = {
+            "c": dset.targets.data.loc[index, "c"],
+            "x0": dset.targets.data.loc[index, "x0"],
+            "x1": dset.targets.data.loc[index, "x1"],
+        }
+        bounds = {
+            "c": [[-3, 3]]*len(index),
+            "x0": [[-.1, 10]]*len(index),
+            "x1": [[-5, 5]]*len(index),
+        }
+
+    else:
+        fixed = {
+            "z": dset.targets.data.loc[index, "z"],
+            "mwebv": dset.targets.data.loc[index, "mwebv"],
+            "mwr_v": [3.1]*len(index),
+        }
+
+        guess = {
+            "t0": dset.targets.data.loc[index, "t0"],
+            "c": dset.targets.data.loc[index, "c"],
+            "x0": dset.targets.data.loc[index, "x0"],
+            "x1": dset.targets.data.loc[index, "x1"],
+        }
+        bounds = {
+            "t0": dset.targets.data.loc[index, "t0"].apply(lambda x : [x-15, x+30]),
+            "c": [[-3, 3]]*len(index),
+            "x0": [[-.1, 10]]*len(index),
+            "x1": [[-5, 5]]*len(index),
+        }
 
     params = dict(phase_fitrange=[-40, 80], maxcall=10000, modelcov=True)
     params.update(kwargs)
@@ -154,7 +173,7 @@ def run_edris(obs, cov, exp, **kwargs):
     return res, hessian(L)(res), loss, iter_params
 
 
-def fit_cosmo(z_bins, mu_bins, cov):
+def fit_cosmo(z_bins, mu_bins, cov, cosmo):
     logger.log(logging.INFO, "Fitting cosmology to edris result")
     def dist(z, Omega_r, Omega_m, Omega_l, H0):
         Omega_k = 1. - Omega_m - Omega_l - Omega_r
@@ -162,7 +181,7 @@ def fit_cosmo(z_bins, mu_bins, cov):
 
     dist_vec = np.vectorize(dist)
 
-    def z_to_mag(z, Omega_m, Mb, Omega_r=cosmo.Ogamma0 + cosmo.Onu0, Omega_l=cosmo.Ode0, H0=cosmo.H0.value):
+    def z_to_mag(z, Omega_m, Mb=25-19.3, Omega_r=cosmo.Ogamma0 + cosmo.Onu0, Omega_l=cosmo.Ode0, H0=cosmo.H0.value):
         return 5.0 * np.log10(abs((z + 1.0) * dist_vec(z, Omega_r, Omega_m, Omega_l, H0)[0])) + Mb
 
     popt, pcov, = curve_fit(z_to_mag,
