@@ -8,16 +8,19 @@ from scipy.stats import gaussian_kde
 from .load import load_maps
 
 
-def rand_ztf_positions(maps, size=1, zcut=0.1, nside=128):
+def rand_ztf_positions(maps, size=1, zcut=0.1):
+    """
+    Draw random ra/dec from the ZTF angular distribution and z from Uchuu matching those coordinates
+    """
     ztf_map, bgs_redshifts = maps
     ztf_nside = healpy.npix2nside(len(ztf_map))
-    bgs_nside = healpy.npix2nside(len(bgs_nside))
+    bgs_nside = healpy.npix2nside(len(bgs_redshifts))
 
     sampled_pix = np.random.choice(
         np.arange(healpy.nside2npix(nside)), size=size, p=ztf_map
     )
 
-    bgs_sampled_pix = healpy.ang2pix(bgs_nside, *healpy.pix2ang(ztf_nside, sampled_pix))
+    bgs_sampled_pix = healpy.ang2pix(bgs_nside, *healpy.pix2ang(ztf_nside, spl))
 
     ra, dec, z = [], [], []
     for angpix, zpix in zip(sampled_pix, bgs_sampled_pix):
@@ -25,13 +28,17 @@ def rand_ztf_positions(maps, size=1, zcut=0.1, nside=128):
         ra.append(new_ra)
         dec.append(new_dec)
 
-        kde = gaussian_kde(bgs_redshifts[zpix])
-        z.append(kde.resample(1)[0][0])
+        
+        z.append(np.random.choice(bgs_redshifts[zpix]))
 
     return (ra, dec, z)
 
 
-def draw_from_pixel(pix, nside):
+def draw_from_pixel(pix, nside):*
+    """
+    Draw random ra/dec from a given healpy pixel.
+    The pixel is roughly approximated by it bounding rectangle in RA/DEC and points are sampled from it until they land in the pixel.
+    """
     boundaries_theta, boundaries_ra = healpy.vec2ang(healpy.boundaries(nside, pix).T)
     boundaries_dec = np.pi / 2 - boundaries_theta
     boundaries_ra = boundaries_ra[
