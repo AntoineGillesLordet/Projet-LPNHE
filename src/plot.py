@@ -151,3 +151,85 @@ def plot_flux_phwl(input_flux, model_flux, wl_rf, ph_rf, linthresh=1e-3):
     axs[1].set_ylabel("Phase")
     axs[1].set_xlabel("Wavelength")
     axs[1].set_ylim((50, -20))
+
+
+def plot_res(data, data_truth, col, label, unit=None, log=False, linthresh=1e-3):
+    fig, axs = plt.subplots(ncols=2, nrows=2, sharex='col', sharey='row', figsize=(10,7))
+    axs[0,0].errorbar(data_truth[col], data[col],
+                      yerr = data["err_"+col] if "err_"+col in data.columns else None,
+                      linestyle="", marker=".")
+    
+    axs[0,0].plot([data_truth[col].min() - 1e-3, data_truth[col].max() + 1e-3], [data_truth[col].min() - 1e-3, data_truth[col].max() + 1e-3], linestyle=':', color='r')
+    delta = data_truth[col] - data[col] 
+    axs[1,0].errorbar(data_truth[col], delta,
+                      yerr = data["err_"+col] if "err_"+col in data.columns else None,
+                      linestyle="", marker=".")
+    axs[1,0].axhline(0, linestyle=':', color='r')
+
+    if log:
+        axs[0,0].loglog()
+        axs[1,0].semilogx()
+        axs[1,0].set_yscale("symlog", linthresh=linthresh)
+        
+        l_bins = np.logspace(np.log10(np.min(np.abs(delta))) - 1e-10, np.log10(np.max(np.abs(delta))) + 1e-10, 40)
+        _=axs[1,1].hist(delta, bins=[*(-l_bins[::-1]), *l_bins], orientation='horizontal')
+    else:
+        _=axs[1,1].hist(delta, bins=80, orientation='horizontal')
+    axs[1,1].set_xlabel("Count")
+    mean, std = delta.mean(), delta.std()
+    axs[1,1].axhline(mean, linestyle='--', color='tab:purple', label=f'Mean : {mean:.3e}')
+    axs[1,1].axhline(mean-std, linestyle=':', color='tab:purple', label=f'Std : {std:.3e}')
+    axs[1,1].axhline(mean+std, linestyle=':', color='tab:purple')
+    axs[1,1].legend()
+
+    if unit:
+        axs[0,0].set_xlabel(label.lower() + '$_{Truth}$ (' + unit + ')')
+        axs[0,0].set_ylabel(label + ' (' + unit + ')')
+        axs[1,0].set_xlabel(label.lower() + '$_{Truth}$ (' + unit + ')')
+        axs[1,0].set_ylabel(label.lower() + '$_{Truth} - $' + ' (' + unit + ')')
+    else:
+        axs[0,0].set_xlabel(label.lower() + '$_{Truth}$')
+        axs[0,0].set_ylabel(label)
+        axs[1,0].set_xlabel(label.lower() + '$_{Truth}$')
+        axs[1,0].set_ylabel(label.lower() + '$_{Truth} - $' + label)
+
+    fig.delaxes(axs[0,1])
+
+
+potential_keys = ['H0', 'M0', 'Omega_m', 'Omega_r', 'Omega_l', 'coef', 'sigma_int']
+latex_keys = {'H0': '$H_0$',
+  'M0': '$M_0$',
+  'Omega_m': '$\\Omega_m$',
+  'Omega_r': '$\\Omega_r$',
+  'Omega_l': '$\\Omega_l$',
+  'coef': ['$\\alpha$', '$\\beta$'],
+  'sigma_int': '$\\sigma_{int}$'}
+    
+def plot_edris_biais(res, x0, cov_res):
+    fig, ax = plt.subplots(figsize=(5,5))
+    keys = np.array(list(res.keys()))[[p in potential_keys for p in res.keys()]]
+    labels, values, diffs = [], [], []
+    for k in keys:
+        labels += latex_keys[k] if isinstance(latex_keys[k], list) else [latex_keys[k]]
+        values += list(res[k])
+        diffs +=  list(res[k] - x0[k])
+    n_pars = len(keys)
+    ax.hlines(0, -1, 5*n_pars+1, color='r', linestyle=':')
+    ax.set_xticks(5*np.arange(n_pars+1), labels)
+    ax.set_ylabel('Deviation')
+    plt.errorbar(5*np.arange(n_pars+1), diffs,
+                 yerr= jnp.sqrt(jnp.diag(cov_res)[:n_pars+1]),
+                 linestyle='',
+                 marker='.',
+                 capsize=5,
+                 capthick=.5)
+    # plt.savefig('../figures/Uchuu_final_params.png')
+    fig, ax = plt.subplots(figsize=(1,1))
+    ax.axis("off")
+    for i, pos in enumerate(np.arange(n_pars+1)*.4):
+        fig.text(0, pos, labels[i] + f" = {values[i]:.3f} $\\pm$ {jnp.sqrt(jnp.diag(cov_res)[i]):.3f}")
+        # fig.text(0, .4, f"$\\Omega_l = ${res['Omega_l'][0]:.3f} $\\pm$ {jnp.sqrt(jnp.diag(cov_res)[1]):.3f}")
+        # fig.text(0, 0., f"$\\alpha = ${res['coef'][0]:.3f} $\\pm$ {jnp.sqrt(jnp.diag(cov_res)[2]):.3f}")
+        # fig.text(0, -.4, f"$\\beta = ${res['coef'][1]:.3f} $\\pm$ {jnp.sqrt(jnp.diag(cov_res)[3]):.3f}")
+
+

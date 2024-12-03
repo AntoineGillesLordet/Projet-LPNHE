@@ -4,8 +4,7 @@ import jax.numpy as jnp
 import numpy as np
 import pandas
 
-from astropy.cosmology import Planck18
-from . import Planck15
+from astropy.cosmology import Planck18, Planck15
 from edris.tools import log_bins
 from .logging import logger, logging
 
@@ -83,7 +82,7 @@ def dset_sanitize_and_filter(dset, return_index=True, all_pts=False):
         return dset.targets.data[dset.targets.data["valid"]].index
 
 
-def X0X1C_to_MbX1C(values, cov, M0=10.501612):
+def X0X1C_to_MbX1C(values, cov, M0=10.501612, alpha=0.14, beta=3.15):
     """
     Transforms a (x0,x1,c) data set with their covariance matrix to a (Mb, x1, c) data set with the corresponding covariance matrix
 
@@ -219,7 +218,7 @@ def sncosmo_to_edris(res, data, index, n_bins=10, M0=10.501612):
     cov_sel = cov.select(goods)
     
     data['used_edris'] = False
-    data.loc[data[data['converged']].index[goods], 'used_edris'] = True
+    data.loc[index[goods], 'used_edris'] = True
     
     exp = {
         "z": jnp.array(data[data['used_edris']]["z"].to_list()),
@@ -245,31 +244,9 @@ def get_cov_from_hess(hess, invcov=False):
     Cov : jax.numpy.array
         The covariance matrix as ``(0.5 H)^(-1)``
     """
-    n_var = len(hess["coef"]["coef"])
-    n_bins = len(hess["mu_bins"]["mu_bins"])
-    n = hess["variables"]["variables"].shape[1]
-    row1 = jnp.hstack(
-        (
-            hess["coef"]["coef"],
-            hess["coef"]["mu_bins"],
-            hess["coef"]["variables"].reshape(n_var, n * n_var),
-        )
-    )
-    row2 = jnp.hstack(
-        (
-            hess["mu_bins"]["coef"],
-            hess["mu_bins"]["mu_bins"],
-            hess["mu_bins"]["variables"].reshape(n_bins, n * n_var),
-        )
-    )
-    row3 = jnp.hstack(
-        (
-            hess["variables"]["coef"].reshape(n * n_var, n_var),
-            hess["variables"]["mu_bins"].reshape(n * n_var, n_bins),
-            hess["variables"]["variables"].reshape(n * n_var, n * n_var),
-        )
-    )
-    flatten_hessian = jnp.vstack((row1, row2, row3))
+    n = {k1:hess[k1][k1].shape[1] for k1 in hess.keys()}
+    n["variables"]*=n["coef"]
+    flatten_hess = jnp.vstack([np.hstack([hess[k1][k2].reshape(n[k1], n[k2]) for k2 in hess.keys()]) for k1 in hess.keys()])
     if invcov:
         return 0.5 * flatten_hessian
     return jnp.linalg.inv(0.5 * flatten_hessian)
@@ -312,7 +289,7 @@ def edris_filter(exp, cov, obs, data):
     cov_sel = cov.select(goods)
     
     data['used_edris'] = False
-    data.loc[np.where(goods), 'used_edris'] = True
+    data.loc[np.where(goods)[0], 'used_edris'] = True
     
     return exp, cov_sel, obs
 

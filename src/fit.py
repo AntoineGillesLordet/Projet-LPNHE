@@ -52,8 +52,8 @@ def fit_lc(dset, index, savefile=None, pets=False, **kwargs):
         fixed = {
             "z": dset.targets.data.loc[index, "z"],
             "t0": dset.targets.data.loc[index, "t0"],
-            "mwebv": dset.targets.data.loc[index, "mwebv"],
-            "mwr_v": [3.1]*len(index),
+            # "mwebv": dset.targets.data.loc[index, "mwebv"],
+            # "mwr_v": [3.1]*len(index),
         }
 
         guess = {
@@ -70,8 +70,8 @@ def fit_lc(dset, index, savefile=None, pets=False, **kwargs):
     else:
         fixed = {
             "z": dset.targets.data.loc[index, "z"],
-            "mwebv": dset.targets.data.loc[index, "mwebv"],
-            "mwr_v": [3.1]*len(index),
+            # "mwebv": dset.targets.data.loc[index, "mwebv"],
+            # "mwr_v": [3.1]*len(index),
         }
 
         guess = {

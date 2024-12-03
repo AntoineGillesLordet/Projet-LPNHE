@@ -16,8 +16,6 @@ from nacl.specutils import clean_and_project_spectra
 from lemaitre import bandpasses
 filterlib = bandpasses.get_filterlib()
 
-
-
 def load_bgs(
     path=None,
     filename="Uchuu.csv",
@@ -32,37 +30,40 @@ def load_bgs(
             .difference({"status", "in_desi"})
             .issubset(set(df.columns))
         ):
-            logger.log(logging.INFO, f"Found file {filepath} with columns {df.columns}")
+            logger.log(logging.INFO, f"Found .csv file at {filepath} with columns {df.columns}")
             return df
         else:
             logger.log(
                 logging.INFO,
-                f"Found file {filepath} with columns {df.columns} but columns {columns} were prompted, defaulting to fits file",
+                f"Found file {filepath} at with columns {df.columns} but columns {columns} were prompted, loading from the fits file",
             )
-            raise IndexError
     except IndexError:
-        logger.log(logging.INFO, "Reading BGS data from fits file")
-        if path is None:
-            path = "/global/cfs/cdirs/desi/cosmosim/FirstGenMocks/Uchuu/LightCone/BGS_v2/BGS_LC_Uchuu.fits"
+        logger.log(logging.WARNING, f"No file named {filename} around here, trying to load from fits file")
+    
+    if path is None:
+        path = "/pscratch/sd/a/agillesl/FirstGenMocks/Uchuu/LightCone/BGS_v2/BGS_LC_Uchuu.fits"
+    logger.log(logging.INFO, f"Reading BGS data from fits file at {path}")
 
-        data = fitsio.read(path, columns=columns)
+    data = fitsio.read(path, columns=columns)
 
-        df = pandas.DataFrame(data)
-        df.rename(columns=lambda s: s.lower(), inplace=True)
-        for col in df.columns:
-            if df[col].dtype == np.dtype(">f8") or df[col].dtype == np.dtype(">f4"):
-                df[col] = np.float64(df[col])
-            elif df[col].dtype == np.dtype(">i4"):
-                df[col] = np.int64(df[col])
+    df = pandas.DataFrame(data)
+    df.rename(columns=lambda s: s.lower(), inplace=True)
+    for col in df.columns:
+        if df[col].dtype == np.dtype(">f8") or df[col].dtype == np.dtype(">f4"):
+            df[col] = np.float64(df[col])
+        elif df[col].dtype == np.dtype(">i4") or df[col].dtype == np.dtype(">i8"):
+            df[col] = np.int64(df[col])
 
+    if in_desi:
         if "status" in df.columns:
             df["in_desi"] = df["status"] & 2**1 != 0
+            df = df[df["in_desi"]]
             df.drop(columns=["status"], inplace=True)
+        else:
+            logging.log(logging.WARNING, "Only galaxies in DESI footprint requested but the dataset doesn't contain the 'status' column")
+
     logger.log(logging.INFO, "Done")
-    if in_desi:
-        return df[df["in_desi"]]
-    else:
-        return df
+    return df
 
 
 def extract_ztf(start_time=58179, end_time=59215):
@@ -194,7 +195,7 @@ def make_tds_from_pets(sne_data, lc_data, sp_data, sigma_x1_lim=0.2, sigam_c_lim
                           lc_data=lc_data.to_records(),
                           spec_data=sp_data.to_records(),
                           filterlib=filterlib)
-    SALT2Like.flag_out_of_range_datapoints(tds, compress=True)
+    SALT2Like.flag_out_of_range_datapoints(tds, wl_range=(2000., 11000.), basis_knots=[200, 20], compress=True)
     model = SALT2Like(tds)
     # Project spectra onto spline basis
     projected_spectra, in_error = clean_and_project_spectra(tds, model.basis.bx)
