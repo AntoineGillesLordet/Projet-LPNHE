@@ -233,3 +233,61 @@ def plot_edris_biais(res, x0, cov_res):
         # fig.text(0, -.4, f"$\\beta = ${res['coef'][1]:.3f} $\\pm$ {jnp.sqrt(jnp.diag(cov_res)[3]):.3f}")
 
 
+def plot_hubble(obs, res, cov_res, cosmo, x0):
+    std_mag = obs.mag - jnp.matmul(res["coef"], res["variables"])
+
+    fig, (ax1, ax2) = plt.subplots(
+        nrows=2, sharex="col", figsize=(7, 6), gridspec_kw={"height_ratios": [3, 1]}
+    )
+    ax1.set_xscale('log')
+    ax1.scatter(
+        exp["z"], std_mag, s=0.5, alpha=0.3, color="k", label="Standardised magnitudes"
+    )
+    ax1.plot(
+        np.linspace(5e-3, 0.8, 1000),
+        cosmo(x0, {'z':np.linspace(5e-3, 0.8, 1000)}),
+        color="tab:green",
+        linestyle=":",
+        label="Underlying cosmo",
+    )
+
+    ax2.scatter(exp["z"], std_mag - cosmo(x0, exp), color="k", s=0.5, alpha=0.3)
+    
+    if "mu_bins" in res.keys():
+        ax1.errorbar(
+            exp["z_bins"],
+            res["mu_bins"],
+            yerr=jnp.sqrt(jnp.diag(cov_res[2 : 2 + n_bins, 2 : 2 + n_bins])),
+            color="tab:blue",
+            label="edris",
+        )
+        ax2.errorbar(
+            exp["z_bins"],
+            res["mu_bins"] - cosmo(x0, {"z" : exp["z_bins"]}),
+            yerr=jnp.sqrt(jnp.diag(cov_res[2 : 2 + n_bins, 2 : 2 + n_bins])),
+            color="tab:blue",
+        )
+    else:
+        ax1.plot(
+            jnp.linspace(5e-3, 0.8, 1000),
+            cosmo(res, {"z": jnp.linspace(5e-3, 0.8, 1000)}),
+            color="tab:blue",
+            label="edris",
+        )
+        ax2.plot(
+            jnp.linspace(5e-3, 0.8, 1000),
+            cosmo(res, {"z": jnp.linspace(5e-3, 0.8, 1000)}) - cosmo(x0, {"z":jnp.linspace(5e-3, 0.8, 1000)}),
+            color="tab:blue",
+        )
+    
+    
+    ax1.legend()
+    ax1.set_ylabel(r"$\mu$")
+    
+    lims = ax2.get_xlim()
+    ax2.hlines(0.0, xmin=lims[0], xmax=lims[1], color="tab:green", linestyle=":")
+    ax2.set_xlim(*lims)
+    ax2.set_ylabel(r"$\Delta\mu$")
+    ax2.set_xlabel(r"$z$")
+    
+    fig.suptitle(r"Modèle fitté par Edris")
