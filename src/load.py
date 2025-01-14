@@ -23,7 +23,10 @@ def load_bgs(
     in_desi=True,
 ):
     try:
-        filepath = glob("../../**/" + filename, recursive=True)[0]
+        if filename[0] == "/":
+            filepath=filename
+        else:
+            filepath = glob("../../**/" + filename, recursive=True)[0]
         df = pandas.read_csv(filepath, index_col=0)
         if (
             set(map(lambda s: s.lower(), columns))
@@ -116,7 +119,7 @@ def load_maps(
         map_ = np.zeros(healpy.nside2npix(ztf_nside))
         for i in tqdm(ids):
             map_[i] += 1
-        map_ = healpy.smoothing(map_, fwhm=G)
+        map_ = healpy.smoothing(map_, fwhm=F)
         map_ -= map_.min()
 
         bgs_df = load_bgs(
