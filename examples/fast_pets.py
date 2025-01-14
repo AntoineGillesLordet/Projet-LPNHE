@@ -94,50 +94,48 @@ def get_mwebv(ra, dec, dustmap="planck"):
     return ebv
 
 def create_ztf_lc_tds(data,lc):
-    lc_list = []
-    non_det = 0
-    lc_id = 0
-    for sn in tqdm(data.index.values, desc='Creating lc'):
-        tmax_phot=data.loc[sn].t0
-        #DL photometry and apply quality cut and mjd
-        try:
-            lc_data = lc.loc[sn]
-
-            #Select only the epochs around max
-            lc_data = lc_data[abs(lc_data.time-tmax_phot)<50]
-
-            lc_detection = lc_data[lc_data.flux/lc_data.fluxerr>5]
-
-            if (np.size(np.unique(lc_detection['band']))>=2) and (np.size(lc_detection['flux'])>=5):
-                
-                lc_list.append(dict(band=lc_data['band'].values,
-                                    flux=lc_data['flux'].values,
-                                    fluxerr=lc_data['fluxerr'].values,
-                                    mjd=lc_data['time'].values,
-                                    zp=lc_data['zp'].values,
-                                    name=np.ones(len(lc_data), like=sn),
-                                    sn=np.ones(len(lc_data), like=sn),
-                                    lc=np.ones(len(lc_data), like=lc_id))
-                              )
-                lc_id += 1
-            else:
-                non_det += 1
-        except:
-            pass
+    lc_tot=lc.copy()
+    lc_tot.reset_index('index', names='sn', inplace=True)
+    lc_tot.reset_index(drop=True, inplace=True)
     
-    lc_tot=pd.DataFrame(lc_list)
+    # Select only points at 5 sigma and in [tmax-50, tmax+100]
+    lc_tot = lc_tot[(lc_tot.flux/lc_tot.fluxerr>5) &
+                    (lc_tot.time.between(data.loc[lc_tot.sn, 't0'].reset_index(drop=True) - 50,
+                                         data.loc[lc_tot.sn, 't0'].reset_index(drop=True) + 100))].copy()
+    lc_tot.reset_index(drop=True, inplace=True)
+    
+    # Select SN on : >=5 detections in >=2 bands
+    goods_sn = (lc_tot.groupby(["sn"]).band.nunique() >= 2) & (lc_tot.groupby(["sn"])['flux'].count() >= 5)
+    
+    # Drop all the photometry points of SN that did not satisfy the previous condition
+    lc_tot = lc_tot[goods_sn.loc[lc_tot.sn].reset_index(drop=True)]
+
+    # Quick LC indexing : grouping by sn and band, count() reduces the dataframe to a single line for a given sn and band
+    grouped = lc_tot.groupby(["sn", "band"]).count()
+    # Mapping between the tuple (sn, band) and the lc index
+    lc_ids = {idx:i for i, idx in enumerate(grouped.index)}
+    # Apply the mapping to all the photometry points
+    lc_tot["lc"] = lc_tot.apply(lambda x : lc_ids[(x.sn, x.band)], axis=1)
+    
+    # Filling the other columns
+    lc_tot['name'] = lc_tot.sn
+    
+    lc_tot.rename(columns={"time":"mjd"}, inplace=True)
     lc_tot.insert (5, 'magsys', 'AB')
     lc_tot.insert (6, 'exptime', 'NaN')
     lc_tot.insert (7, 'valid', 1)
     lc_tot.insert (10, 'mag_sky', 'NaN')
     lc_tot.insert (11, 'seeing', 'NaN')
-    lc_tot=lc_tot.reset_index(drop=True)
+    
+    # Sorting by SN number because it's nicer
+    lc_tot = lc_tot.sort_values('sn').reset_index(drop=True)
     
     float32_cols = list(lc_tot.select_dtypes(include='float32'))
     lc_tot[float32_cols] = lc_tot[float32_cols].astype('float64')
 
     lc_tot.to_csv('mock_lcs.csv', index=False)
     return lc_tot
+
 
 
 def get_SN_data(data):

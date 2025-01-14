@@ -28,7 +28,7 @@ parser.add_argument("-P", "--bgs-path",
 
 parser.add_argument("-F", "--bgs-file",
                     dest="bgs_file",
-                    default="Uchuu.csv",
+                    default="Uchuu_0.2.csv",
                     type=str,
                     help="Name of the catalog csv file if already generated")
 
@@ -47,7 +47,7 @@ if not os.path.exists(args["outdir"]):
     raise FileNotFoundError(f'No dir {args["outdir"]} to output too, consider creating it with mkdir or changing it with -o/--outdir')
 
 import skysurvey
-from src import SNeIa_full_bgs
+from src import SNeIa_full_bgs, extract_ztf
 import sncosmo
 import pandas
 import pickle
@@ -59,12 +59,11 @@ from shapely import geometry
 logging.info('Loading Survey')
 if args["survey_name"]=='ztf':
     # ZTF is already stored as a skysurvey.survey object 
-    with open(args["survey_path"] + '/ztf_survey.pkl', "rb") as file:
-        survey = pickle.load(file)
-        
+    survey=extract_ztf()
 elif args["survey_name"]=='snls':
     # SNLS is defined by pointing its fooprint at its 4 fields
-    survey = skysurvey.GridSurvey.from_pointings(data=pandas.read_csv(args["survey_path"] + '/snls_obslogs_cured.csv', encoding='utf-8'),
+    survey = skysurvey.GridSurvey.from_pointings(data=pandas.read_csv(args["survey_path"] + '/snls_obslogs_cured.csv',
+                                                                      encoding='utf-8'),
                                                footprint=geometry.box(-0.5, -0.5, 0.5, 0.5),
                                                fields_or_coords={'D1': {'ra': 36.450190, 'dec': -4.45065},
                                                                  'D2': {'ra': 150.11322, 'dec': +2.21571},
@@ -80,13 +79,15 @@ elif args["survey_name"]=='snls':
     
 elif args["survey_name"]=='hsc':
     # Same as SNLS, except HSC has only one field
-    survey = skysurvey.Survey.from_pointings(pandas.read_csv(args["survey_path"] + '/hsc_logs_realistic_skynoise.csv', index_col=0), 
+    survey = skysurvey.Survey.from_pointings(pandas.read_csv(args["survey_path"] + '/hsc_logs_realistic_skynoise.csv',
+                                                             index_col=0), 
                                              geometry.Point(0,0).buffer(0.7))
 elif args["survey_name"]:
     raise ValueError(f'Mock generation not yet implemented for survey {survey_name}')
 else:
     raise ValueError('Survey name not provided, use the -s or --survey-name option')
 
+logging.info("Done")
 
 ## TARGETS GENERATION
 logging.info('Drawing SNIa')
@@ -96,11 +97,13 @@ snia = SNeIa_full_bgs(path=args["bgs_path"],
                       date_range=survey.date_range,
                       zmax=0.2 if args["survey_name"]=="ztf" else 1.6,)
 
-# Always use the full area of the galaxy catalog
+# Always use the sky area of the galaxy catalog and not the fullsky one
 _ = snia.draw(tstart=survey.date_range[0], tstop=survey.date_range[1],
               zmax=0.2 if args["survey_name"]=="ztf" else 1.6,
               skyarea=snia.area,
               inplace=True)
+logging.info("Done")
+logging.info(f"{len(snia.data)} SN have been drawn")
 
 logging.info('Computing lightcurves')
 
