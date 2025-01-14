@@ -37,7 +37,6 @@ class SNeIa_full_bgs(Transient):
         # {'model': func, 'prop': dict, 'input':, 'as':}
         self.galaxy_positions = load_bgs(path=path, filename=filename)
         self.set_model(dict(
-            redshift={"kwargs": {"zmax": zmax}},
             x1={"func": SNeIaStretch.nicolas2021},
             c={"func": SNeIaColor.intrinsic_and_dust},
             t0={"func": np.random.uniform, "kwargs": {"low": date_range[0], "high": date_range[1]}},
@@ -60,8 +59,13 @@ class SNeIa_full_bgs(Transient):
             },
         ))
         
-        source = sncosmo.SALT2Source(modeldir=salt_path if salt_path is not None else './data/SALT_snf',
-                                     m0file='nacl_m0_test.dat', m1file='nacl_m1_test.dat', clfile='nacl_color_law_test.dat')
+        if salt_path:
+            source = sncosmo.SALT2Source(modeldir=salt_path,
+                                         m0file='nacl_m0_test.dat',
+                                         m1file='nacl_m1_test.dat',
+                                         clfile='nacl_color_law_test.dat')
+        else:
+            source = sncosmo.get_source('salt2', version='2.4')
         
         if extinction:
             model = sncosmo.Model(source=source, effects=[sncosmo.CCM89Dust()], effect_names=['mw'], effect_frames=['obs'])
