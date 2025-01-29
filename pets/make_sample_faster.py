@@ -85,7 +85,7 @@ clfile='nacl_color_law_test.dat'
 
 
 
-with open("/pscratch/sd/a/agillesl/Documents/Projet_LPNHE/SN_dataset/abacus_10.pkl", 'rb') as f:
+with open('/cfs/data/angi0819/Projet_LPNHE/dataset_hsc.pkl', 'rb') as f:
     # dset = pickle.load(f)
     data = pickle.load(f)
     lc = pickle.load(f)
@@ -142,7 +142,7 @@ def create_ztf_lc_tds(data,lc):
 
 
 def get_SN_data(data):	
-    data=data[['z','ra','dec','t0','x0','x1','c']]
+    data=data[['z','ra','dec','t0','x0','x1','c']].copy()
 
     data['name']=data.index.values
     data['sn']=data.index.values
@@ -154,6 +154,9 @@ def get_SN_data(data):
     data['mwebv']=get_mwebv(data['ra'].values, data['dec'].values, dustmap='planck')
 
     data['zcmb']=zcmb_tot(data['zhel'],data['ra'], data['dec'])
+    float32_cols = list(data.select_dtypes(include='float32'))
+    data[float32_cols] = data[float32_cols].astype('float64')
+
 
     data.to_csv('mock_sne.csv', index=False)
     return data
@@ -180,13 +183,9 @@ def remove_outlier_fit(name, lc, sne, sigma=3):
     # create a model
     source = sncosmo.SALT2Source(modeldir=modelpath,m0file=m0file, m1file=m1file, clfile=clfile)
     dust = sncosmo.CCM89Dust()
-    model= sncosmo.Model(source=source,
-                        # effects=[dust],effect_names=['mw'],effect_frames=['obs']
-                        )
+    model= sncosmo.Model(source=source, effects=[dust],effect_names=['mw'],effect_frames=['obs'])
 
-    model.set(z=zsn,
-             # mwebv=mwebv,mwr_v=3.1
-             )  # set the model's redshift and MW
+    model.set(z=zsn, mwebv=mwebv, mwr_v=3.1)  # set the model's redshift and MW
     #First fit to get a starting position for MCMC
     res, mod = sncosmo.fit_lc(lc_sncosmo, model,['t0', 'x0', 'x1', 'c'],bounds={'x0':(-0.1,10),'x1':(-5, 5),'c':(-3, 3)},phase_range=None,modelcov=False)
 

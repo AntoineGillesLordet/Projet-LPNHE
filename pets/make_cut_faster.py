@@ -10,6 +10,8 @@ from scipy.interpolate import interp1d
 from scipy.signal import argrelmin
 
 from lemaitre import bandpasses
+from logging import getLogger, WARNING
+getLogger("lemaitre.bandpasses.flibs").setLevel(WARNING)
 filterlib = bandpasses.get_filterlib()
 
 import warnings
@@ -23,7 +25,7 @@ m0file='nacl_m0_test.dat'
 m1file='nacl_m1_test.dat'
 clfile='nacl_color_law_test.dat'
 modelpath='../data/SALT_snf/'
-Tgrid_path='Tgrid/'
+Tgrid_path='/cfs/data/angi0819/Projet_LPNHE/Tgrid/HSC/'
 outdir='Results/'
 
 data=pd.read_csv('mock_sne.csv')
@@ -77,6 +79,9 @@ def interpolated_intercepts(x, y1, y):
 
 def Tmax_chi2(name,lc,data,x1_lim=4,c_lim=1,showfig=False,savefig=False,output_fig=None):
     from lemaitre import bandpasses
+    from logging import getLogger, WARNING
+    getLogger("lemaitre.bandpasses.flibs").setLevel(WARNING)
+
     filterlib = bandpasses.get_filterlib()
 
     import warnings
@@ -119,7 +124,6 @@ def Tmax_chi2(name,lc,data,x1_lim=4,c_lim=1,showfig=False,savefig=False,output_f
 
             if showfig:
                 plt.show()
-                plt.close()
             plt.close()
             df_Tmax_1SN['Tsncosmo']=res.parameters[1]
             df_Tmax_1SN['eTsncosmo']=res.errors['t0']
@@ -192,7 +196,7 @@ def Tmax_chi2(name,lc,data,x1_lim=4,c_lim=1,showfig=False,savefig=False,output_f
                             df_Tmax_1SN['x2sncosmo_fit']=res_fit.chisq
                             df_Tmax_1SN['Tsncosmo_fit'],df_Tmax_1SN['x0_sncosmo'],df_Tmax_1SN['x1_sncosmo'],df_Tmax_1SN['c_sncosmo']=res_fit.parameters[1:5]
                             df_Tmax_1SN['eTsncosmo_fit'],df_Tmax_1SN['ex0_sncosmo'],df_Tmax_1SN['ex1_sncosmo'],df_Tmax_1SN['ec_sncosmo']=res_fit.errors['t0'],res_fit.errors['x0'],res_fit.errors['x1'],res_fit.errors['c']
-                            if showfig:
+                            if showfig or savefig:
 
                                 #Figures
                                 fig, ax1 = plt.subplots(figsize=(8,6), facecolor='w', edgecolor='k')
@@ -227,7 +231,8 @@ def Tmax_chi2(name,lc,data,x1_lim=4,c_lim=1,showfig=False,savefig=False,output_f
 
                                 if savefig:
                                     plt.savefig(output_fig+'%s_Tmaxgrid.png'%name,bbox_inches='tight')
-                                plt.show()
+                                if showfig:
+                                    plt.show()
                                 plt.close()
                         except:
                             key_suppr = set(df_Tmax_1SN.keys()) - {'name', 'Tsncosmo', 'eTsncosmo', 'zhel', 'mebv'}
@@ -237,11 +242,11 @@ def Tmax_chi2(name,lc,data,x1_lim=4,c_lim=1,showfig=False,savefig=False,output_f
     return df_Tmax_1SN
 
 
-tmax_file=input('Do you want to create Tmax_mock.csv ? y or n: '	)
+tmax_file="y"#input('Do you want to create Tmax_mock.csv ? y or n: '	)
 
 if tmax_file=='y':
     with Parallel(n_jobs=64) as parallel:
-        df_Tmax_tot=pd.DataFrame(parallel(delayed(Tmax_chi2)(nn,lc,data,x1_lim=4,c_lim=1,showfig=True,savefig=True,output_fig="../../figures/PETS_snls/") for nn in tqdm(name, desc=f'Performing cut on SN')))
+        df_Tmax_tot=pd.DataFrame(parallel(delayed(Tmax_chi2)(nn,lc,data,x1_lim=4,c_lim=1,showfig=False,savefig=True,output_fig="/cfs/data/angi0819/Projet_LPNHE/Tgrid/HSC/") for nn in tqdm(name, desc=f'Performing cut on SN')))
     df_Tmax_tot.to_csv(outdir+'Tmax_mock.csv',index=False)
 
 df_Tmax=pd.read_csv(outdir+'Tmax_mock.csv')
@@ -321,7 +326,7 @@ elif (cutx1==False) and (cutc==True):
 
 
 data=data.rename(columns={'Tchi2': 'tmax', 'x0_chi2': 'x0', 'x1_chi2': 'x1', 'c_chi2': 'c'})                         
-data['survey']='SNLS'
+data['survey']='HSC'
 data['valid']=1
 
 data['valid'] = data.apply(lambda row: 0 if row['name'] not in df_Tmax['name'].values else row['valid'], axis=1)

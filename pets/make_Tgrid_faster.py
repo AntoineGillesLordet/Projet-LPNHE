@@ -24,7 +24,7 @@ data_ztf=pd.read_csv('mock_sne.csv')
 lc_ztf=pd.read_csv('mock_lc.csv')
 data_ztf=data_ztf.sort_values(by=['name'])
 
-Tgrid_folder = '/pscratch/sd/a/agillesl/Documents/Projet_LPNHE/Tgrids/pets_uchuu_0.1/'
+Tgrid_folder = '/cfs/data/angi0819/Projet_LPNHE/Tgrid/HSC/'
 
 modelpath='../data/SALT_snf/'
 m0file='nacl_m0_test.dat'
@@ -39,8 +39,11 @@ def _one_fit(t0, model):
     warnings.filterwarnings("ignore", category=RuntimeWarning)
 
     from lemaitre import bandpasses
-    filterlib = bandpasses.get_filterlib()
+    from logging import getLogger, WARNING
+    getLogger("lemaitre.bandpasses.flibs").setLevel(WARNING)
 
+    filterlib = bandpasses.get_filterlib()
+    
     model.set(t0=t0)
     try:
         result, fitted_model = sncosmo.fit_lc(lc_sncosmo, model,['x0', 'x1', 'c'],bounds={'x0':(-0.1,10),'x1':(-5, 5),'c':(-3, 3)},phase_range=None,modelcov=False)
@@ -59,9 +62,9 @@ def _one_fit(t0, model):
 
 names=np.unique(lc_ztf["name"])
 
-with Parallel(n_jobs=256) as parallel:
+with Parallel(n_jobs=128) as parallel:
     for name in tqdm(names, desc='Treating SN'):
-        if os.path.exists('Tgrid/%s.dat'%name):
+        if os.path.exists(Tgrid_folder+'%s.dat'%name):
             continue
         #Select data for specific SN
         lc_sn=lc_ztf[lc_ztf.name==name]
