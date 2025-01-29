@@ -110,6 +110,7 @@ logging.info('Computing lightcurves')
 dset = skysurvey.DataSet.from_targets_and_survey(snia, survey, incl_error=True) # incl_error=True adds gaussian noise to the LC using fluxerr
 
 with open(args["outdir"] + f'/dataset_{args["survey_name"]}.pkl', 'wb') as file:
-    pickle.dump(dset, file)
+    pickle.dump(dset.targets.data, file)
+    pickle.dump(dset.data, file)
 
 logging.info(f'Done, dataset has been saved to {args["outdir"]}/dataset_{args["survey_name"]}.pkl')
