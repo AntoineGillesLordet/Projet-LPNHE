@@ -8,7 +8,7 @@ from mocksurvey.simulations import (
 )
 from skysurvey import DataSet
 # from src import SNeIa_full_bgs, extract_ztf
-from src import extract_snls
+# from src import extract_snls
 import pickle
 import numpy as np
 import logging
@@ -128,7 +128,7 @@ def generate_mock_sample(mock_survey):
         
         mjd = np.random.choice(mock_sn["time"][mock_sn["time"].between(t0 - 10, t0 + 40)])
 
-        source = source=sncosmo.SALT2Source(modeldir='./data/SALT_snf', m0file='nacl_m0_test.dat', m1file='nacl_m1_test.dat', clfile='nacl_color_law_test.dat')
+        source = source=sncosmo.SALT2Source(modeldir='../data/SALT_snf', m0file='nacl_m0_test.dat', m1file='nacl_m1_test.dat', clfile='nacl_color_law_test.dat')
         model= sncosmo.Model(source=source,effects=[sncosmo.CCM89Dust()],effect_names=['mw'],effect_frames=['obs'])
         p = {"z": z, "t0": t0, "x0": x0, "x1": x1, "c": c, "mwebv": mwebv, "mwr_v": 3.1}
         model.set(**p)
@@ -184,28 +184,22 @@ def generate_mock_sample(mock_survey):
 
 if __name__=='__main__':
     
-    import argparse
-    
-    parser = argparse.ArgumentParser()
-    parser.add_argument("-f", "--filename", dest="filename", default="outdir/SN_Uchuu_modelcov.pkl", type=str)
-    args = vars(parser.parse_args())
-
-    with open('outdir/dataset_snls.pkl', "rb") as file:
+    with open('/cfs/data/angi0819/Projet_LPNHE/dataset_2M++.pkl', "rb") as file:
         data = pickle.load(file)
         lc = pickle.load(file)
 
-    survey=extract_snls()
+    #survey=extract_snls()
     dset = DataSet(lc)
-    dset.set_survey(survey)
+    #dset.set_survey(survey)
     
     import skysurvey
     snia = skysurvey.SNeIa.from_data(data)
         
-    snia.update_model(t0={"func":np.random.uniform, 'kwargs':{'low':survey.date_range[0], 'high':survey.date_range[1]}},
+    snia.update_model(#t0={"func":np.random.uniform, 'kwargs':{'low':survey.date_range[0], 'high':survey.date_range[1]}},
                       redshift={"kwargs": {'zmax':1.6,}, 'as':'z'},
                       mwebv={"func": skysurvey.effects.milkyway.get_mwebv, "kwargs": {"ra": "@ra", "dec": "@dec"}},)
 
-    source = sncosmo.SALT2Source(modeldir='./data/SALT_snf', m0file='nacl_m0_test.dat', m1file='nacl_m1_test.dat', clfile='nacl_color_law_test.dat')
+    source = sncosmo.SALT2Source(modeldir='../data/SALT_snf', m0file='nacl_m0_test.dat', m1file='nacl_m1_test.dat', clfile='nacl_color_law_test.dat')
     model= sncosmo.Model(source=source,effects=[sncosmo.CCM89Dust()],effect_names=['mw'],effect_frames=['obs'])
 
     snia.set_template(model)
@@ -231,4 +225,4 @@ if __name__=='__main__':
 
     mock_spectra = generate_mock_sample(output)
     mock_spectra.rename(columns={"snid":"sn", "flux_true":"fluxtrue"}, inplace=True)
-    mock_spectra.to_csv("data/Mock_sp.csv")
+    mock_spectra.to_csv("../data/Mock_sp_test.csv")

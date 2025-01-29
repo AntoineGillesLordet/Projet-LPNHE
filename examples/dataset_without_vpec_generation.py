@@ -10,19 +10,19 @@ parser.add_argument("-s", "--survey-name",
 
 parser.add_argument("-S", "--survey-logs",
                     dest="survey_path",
-                    default="./data",
+                    default="../data",
                     type=str,
                     help="General path for survey logs")
 
 parser.add_argument("-m", "--model-dir",
                     dest="model_dir",
-                    default="./data/SALT_snf",
+                    default="../data/SALT_snf",
                     type=str,
                     help="Path for salt2 data files")
 
 parser.add_argument("-o", "--outdir",
                     dest="outdir",
-                    default="./outdir",
+                    default="../outdir",
                     type=str,
                     help="Output directory")
 
@@ -61,7 +61,7 @@ elif args["survey_name"]=='snls':
     survey.data.replace({'MEGACAMPSF::g':'megacam6::g',
                        'MEGACAMPSF::i':'megacam6::i2',
                        'MEGACAMPSF::r':'megacam6::r',
-                       'MEGACAMPSF::y':'megacam6::i2', # Hotfix as the y band was not implemented
+                       'MEGACAMPSF::y':'megacam6::y',
                        'MEGACAMPSF::z':'megacam6::z'}, inplace=True)
     
 elif args["survey_name"]=='hsc':
@@ -76,7 +76,14 @@ else:
 
 ## GENERAL TARGETS GENERATION
 logging.info('Drawing SNIa')
-snia = skysurvey.SNeIa()
+# Redefinition of the SNeIa class to input another cosmology
+from skysurvey.tools.utils import random_radec
+from astropy.cosmology import FlatLambdaCDM
+class SNeIa( skysurvey.SNeIa ):
+
+    _COSMOLOGY=FlatLambdaCDM(name="2M++", H0=68.1, Om0=0.306)
+    
+snia = SNeIa()
 
 # This loads Mahmoud's extended SALT2 model
 source = sncosmo.SALT2Source(modeldir=args["model_dir"],
@@ -109,9 +116,10 @@ else:
     
 logging.info('Computing lightcurves')
 
-dset = skysurvey.DataSet.from_targets_and_survey(snia, survey, incl_error=True) # incl_error=True adds gaussian noise to the LC using fluxerr
+dset = skysurvey.DataSet.from_targets_and_survey(snia, survey, incl_error=True, discard_bands=True) # incl_error=True adds gaussian noise to the LC using fluxerr
 
 with open(args["outdir"] + f'/dataset_{args["survey_name"]}.pkl', 'wb') as file:
-    pickle.dump(dset, file)
+    pickle.dump(dset.targets.data, file)
+    pickle.dump(dset.data, file)
 
 logging.info(f'Done, dataset has been saved to {args["outdir"]}/dataset_{args["survey_name"]}.pkl')
