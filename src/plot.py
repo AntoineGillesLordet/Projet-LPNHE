@@ -6,6 +6,8 @@ from scipy.ndimage import gaussian_filter
 from astropy.time import Time
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
+from numpy.lib.histograms import _get_bin_edges
+import jax.numpy as jnp
 
 color_band = {"ztfi":"black",
              "ztfr":"purple",
@@ -17,7 +19,27 @@ color_band = {"ztfi":"black",
              }
 
 
-def corner_(data, var_names=None, fig=None, labels=None, title=None, **kwargs):
+def corner_(data, var_names=None, labels=None, fig=None, title=None, return_fig=False, **kwargs):
+    """
+    Wrapper around ``corner.corner()`` for quick plotting of a dataset
+
+    Parameters
+    ----------
+    data : pandas.Dataframe or np.ndarray
+        Data to plot, see ``corner`` documentation for more details.
+    var_names : str list, optional
+        In case of a Dataframe, columns to use in the corner plot.
+    labels : str list, optional
+        Labels of the different axes. If not provided, defaults to ``var_names``.
+    fig : matplotlib.Figure, optional
+        Figure to plot on, useful for overplotting different datasets.
+    title : str, optional
+        Title of the plot.
+    return_fig : bool, optional
+        Wether to return the figure, should be used with ``fig`` for plotting different datasets.
+    **kwargs : Any
+        All kwargs are passed to ``corner.corner``.
+    """
     params = dict(
         var_names=var_names,
         show_titles=True,
@@ -48,24 +70,62 @@ def corner_(data, var_names=None, fig=None, labels=None, title=None, **kwargs):
         fig.suptitle(title, fontsize=30)
 
     fig.set_dpi(50)
-    return fig
+    if return_fig:
+        return fig
 
 
-def scatter_mollweide(data, ax=None, **kwargs):
+def scatter_mollweide(data, ax=None, degrees=True, **kwargs):
+    """
+    Wrapper around ``matplotlib.scatter`` for quick plotting of a dataset in mollweide projection
+
+    Parameters
+    ----------
+    data : pandas.Dataframe
+        Data to plot, should contain columns labeled ``["ra", "dec"]``.
+    ax : matplotlib.projection.geo.MollweideAxes, optional
+        MollweideAxes instance to plot on, if not provided creates a new figure.
+    degrees : bool, optional
+        Wether given coordinates are in degrees or rad.
+    **kwargs : Any
+        All kwargs are passed to ``matplotlib.scatter``.
+    """
+
     if ax is None:
         fig = plt.figure()
         ax = fig.add_subplot(projection="mollweide")
 
     params = dict(s=1, color="k", alpha=0.3, marker=".")
     params.update(kwargs)
-    ax.scatter(
-        (data["ra"] - 360 * (data["ra"] > 180)) * np.pi / 180,
-        data["dec"] * np.pi / 180,
-        **params,
-    )
+    if degrees:
+        ax.scatter(
+            (data["ra"] - 360 * (data["ra"] > 180)) * np.pi / 180,
+            data["dec"] * np.pi / 180,
+            **params,
+        )
+    else:
+        ax.scatter(
+            data["ra"] - 2*np.pi * (data["ra"] > np.pi),
+            data["dec"],
+            **params,
+        )
 
 
 def scatter_3d(x, y, z, bins=50):
+    """
+    3D scatter plot in cartesian coordinates with color coding according to the local density of points
+
+    Parameters
+    ----------
+    x : array-like, shape (n, )
+        X coordinates.
+    y : array-like, shape (n, )
+        Y coordinates.
+    z : array-like, shape (n, )
+        Z coordinates.
+    bins : int, optional
+        Number of bins for the density evaluation.
+    """
+
     count, (binx, biny, binz) = np.histogramdd([x, y, z], bins=bins)
     count = gaussian_filter(count, 0.9)
     x_, y_, z_ = np.meshgrid(
@@ -89,71 +149,30 @@ def scatter_3d(x, y, z, bins=50):
     norm = Normalize(vmin=c.min(), vmax=c.max())
     fig.colorbar(cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax, orientation='vertical')
 
-def plot_lc_index(index, lc_data, sne_data=None):
-        
-    for lc_nb in np.unique(lc_data[(lc_data.sn==index) & (lc_data.valid==1)].lc):
-        lc = lc_data[(lc_data.lc==lc_nb) & (lc_data.valid==1)].sort_values(by='mjd')
-        band = np.array(lc.band)[0]
-        coef = 10 ** (-(lc["zp"] - 25) / 2.5)
-        plt.errorbar(lc["mjd"],
-                     lc["flux"]*coef,
-                     yerr=lc["fluxerr"]*coef,
-                     linestyle='',
-                     marker='.',
-                     color=color_band[band],
-                     label=band
-                    )
-    if sne_data is not None:
-        plt.axvline(sne_data.loc[index, "tmax"], color="purple", label=r"$t_0$")
-        plt.axvline(sne_data.loc[index, "tmax"] - sne_data.loc[index, "err_tmax"], color="purple", linestyle=":")
-        plt.axvline(sne_data.loc[index, "tmax"] + sne_data.loc[index, "err_tmax"], color="purple", linestyle=":")
     
-    plt.title(f"SN {index}")
-    plt.legend()
-    
-def _2D_cmap(x,y, renorm=True):
-    xx, yy = x.copy(), y.copy()
-    if renorm:
-        xx -= xx.min()
-        yy -= yy.min()
-        xx /= xx.max()
-        yy /= yy.max()
-    return np.array(list(zip(0.7*((xx.ravel()-1)**2 + (yy.ravel()-(1-0.5/np.sqrt(2)))**2),
-                               0.7*((xx.ravel())**2 + (yy.ravel()-(1-0.5/np.sqrt(2)))**2),
-                               ((xx.ravel()-0.5)**2 + (yy.ravel()+0.5)**2)/2.5))
-                   )
-
-def plot_flux_phwl(input_flux, model_flux, wl_rf, ph_rf, linthresh=1e-3):
-    fig, axs = plt.subplots(ncols=2, figsize=(20,10))
-    axs[0].scatter(input_flux,
-                   model_flux,
-                   marker='.',
-                   s=5,
-                   alpha=0.5,
-                   c=_2D_cmap(wl_rf, ph_rf, renorm=False)
-                  )
-    min_ = min(input_flux.min(), model_flux.min())
-    max_ = max(input_flux.max(), model_flux.max())
-    ext = max(np.abs(min_), np.abs(max_))
-    axs[0].plot([-ext, ext], [-ext, ext], 'k:')
-    axs[0].plot([-ext, ext], [ext, -ext], 'k:')
-    
-    if linthresh:
-        axs[0].set_yscale('symlog', linthresh=linthresh)
-        axs[0].set_xscale('symlog', linthresh=linthresh)
-    
-    axs[0].set_xlabel("Input Flux")
-    axs[0].set_ylabel("Model Flux")
-
-    wl_lin, ph_lin = np.meshgrid(np.linspace(2000, 9000, 1000), np.linspace(-20, 50, 1000))
-
-    axs[1].pcolormesh(wl_lin, ph_lin, _2D_cmap(wl_lin, ph_lin).reshape((1000,1000,3)))
-    axs[1].set_ylabel("Phase")
-    axs[1].set_xlabel("Wavelength")
-    axs[1].set_ylim((50, -20))
 
 
 def plot_res(data, data_truth, col, label, unit=None, log=False, linthresh=1e-3):
+    """
+    Plot the residuals of the data with respect to the truth
+
+    Parameters
+    ----------
+    data : pandas.DataFrame
+        Dataframe containing the reconstructed values.
+    data_truth : pandas.DataFrame
+        Dataframe containing the true values.
+    col : str
+        Name of the column to use.
+    label : str
+        Label to use in the axes/title.
+    unit : str, optional
+        Unit to add in the labels, default labels have no units.
+    log : bool, optional
+        Wether to plot with a symmetric log scale.
+    linthresh : float, optional
+        In the case of a symmetric log scale, threshold for the linear scale around 0.
+    """
     fig, axs = plt.subplots(ncols=2, nrows=2, sharex='col', sharey='row', figsize=(10,7))
     axs[0,0].errorbar(data_truth[col], data[col],
                       yerr = data["err_"+col] if "err_"+col in data.columns else None,
@@ -206,6 +225,9 @@ latex_keys = {'H0': '$H_0$',
   'sigma_int': '$\\sigma_{int}$'}
     
 def plot_edris_biais(res, x0, cov_res):
+    """
+    Plot for the bias in the edris parameters, could be enhanced
+    """
     fig, ax = plt.subplots(figsize=(5,5))
     keys = np.array(list(res.keys()))[[p in potential_keys for p in res.keys()]]
     labels, values, diffs = [], [], []
@@ -223,17 +245,16 @@ def plot_edris_biais(res, x0, cov_res):
                  marker='.',
                  capsize=5,
                  capthick=.5)
-    # plt.savefig('../figures/Uchuu_final_params.png')
     fig, ax = plt.subplots(figsize=(1,1))
     ax.axis("off")
     for i, pos in enumerate(np.arange(n_pars+1)*.4):
         fig.text(0, pos, labels[i] + f" = {values[i]:.3f} $\\pm$ {jnp.sqrt(jnp.diag(cov_res)[i]):.3f}")
-        # fig.text(0, .4, f"$\\Omega_l = ${res['Omega_l'][0]:.3f} $\\pm$ {jnp.sqrt(jnp.diag(cov_res)[1]):.3f}")
-        # fig.text(0, 0., f"$\\alpha = ${res['coef'][0]:.3f} $\\pm$ {jnp.sqrt(jnp.diag(cov_res)[2]):.3f}")
-        # fig.text(0, -.4, f"$\\beta = ${res['coef'][1]:.3f} $\\pm$ {jnp.sqrt(jnp.diag(cov_res)[3]):.3f}")
 
 
-def plot_hubble(obs, res, cov_res, cosmo, x0):
+def plot_hubble(obs, exp, res, cov_res, cosmo, x0):
+    """
+    Hubble diagram for edris output and comparison between true and reconstructed cosmology.
+    """
     std_mag = obs.mag - jnp.matmul(res["coef"], res["variables"])
 
     fig, (ax1, ax2) = plt.subplots(
@@ -272,7 +293,7 @@ def plot_hubble(obs, res, cov_res, cosmo, x0):
             jnp.linspace(5e-3, 0.8, 1000),
             cosmo(res, {"z": jnp.linspace(5e-3, 0.8, 1000)}),
             color="tab:blue",
-            label="edris",
+            label="Edris fit",
         )
         ax2.plot(
             jnp.linspace(5e-3, 0.8, 1000),
@@ -290,4 +311,62 @@ def plot_hubble(obs, res, cov_res, cosmo, x0):
     ax2.set_ylabel(r"$\Delta\mu$")
     ax2.set_xlabel(r"$z$")
     
-    fig.suptitle(r"Modèle fitté par Edris")
+    fig.suptitle(r"Edris fitted model")
+
+
+def plot_binned_data(to_bin, data, bins, **kwargs):
+    """
+    Nice utility function for plotting mean and stds of data in bins.
+
+    Parameters
+    ----------
+    to_bin : array-like, shape (n,)
+        Values to bin
+    data : array-like, shape (n,)
+        Values to average
+    bins : int or array-like
+        Bins to use, similar to ``numpy.histogram`` parameter ``bins``.
+    **kwargs : Any, optional
+        All kwargs are passed to ``matplotlib.pyplot.errorbar``.
+
+    """
+    bin_edges, uniform_bins = _get_bin_edges(to_bin, bins, None, None)
+    idx = to_bin.argsort()
+    to_bin = to_bin[idx]
+    data = data[idx]
+    bounds =np.concatenate((
+        to_bin.searchsorted(bin_edges[:-1], 'left'),
+        to_bin.searchsorted(bin_edges[-1:], 'right')))
+    means = [data[start:stop].mean() for start, stop in zip(bounds[:-1],bounds[1:])]
+    stds = [data[start:stop].std() for start, stop in zip(bounds[:-1],bounds[1:])]
+    
+    default_style = dict(linestyle='',
+             linewidth=1,
+             capsize=2)
+    default_style.update(**kwargs)
+    plt.errorbar((bin_edges[:-1]+bin_edges[1:])/2, means, stds, (bin_edges[1:] - bin_edges[:-1])/2, **default_style)
+
+
+def plot_lc_index(index, lc_data, sne_data=None):
+    """
+    My plotting for lightcurve because I was tired of having to put everything in a skysurvey dataset.
+    """
+    for lc_nb in np.unique(lc_data[(lc_data.sn==index) & (lc_data.valid==1)].lc):
+        lc = lc_data[(lc_data.lc==lc_nb) & (lc_data.valid==1)].sort_values(by='mjd')
+        band = np.array(lc.band)[0]
+        coef = 10 ** (-(lc["zp"] - 25) / 2.5)
+        plt.errorbar(lc["mjd"],
+                     lc["flux"]*coef,
+                     yerr=lc["fluxerr"]*coef,
+                     linestyle='',
+                     marker='.',
+                     color=color_band[band],
+                     label=band
+                    )
+    if sne_data is not None:
+        plt.axvline(sne_data.loc[index, "tmax"], color="purple", label=r"$t_0$")
+        plt.axvline(sne_data.loc[index, "tmax"] - sne_data.loc[index, "err_tmax"], color="purple", linestyle=":")
+        plt.axvline(sne_data.loc[index, "tmax"] + sne_data.loc[index, "err_tmax"], color="purple", linestyle=":")
+    
+    plt.title(f"SN {index}")
+    plt.legend()

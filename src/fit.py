@@ -17,103 +17,24 @@ try:
 except:
     tqdm = lambda x: x
 
+from astropy.table import Table
 
-def fit_lc(dset, index, savefile=None, pets=False, **kwargs):
-    """
-    Fit lightcurves using the SALT2 model with skysurvey/sncosmo using the following bounds:
-    * ``z`` is fixed
-    * ``t0`` is fitted in ``[t0_true-15 ; t0_true+30]``
-    * ``c`` is fitted in ``[-3;3]``
-    * ``x0`` is fitted in ``[-0.1;10]``
-    * ``x1`` is fitted in ``[-5;5]``
+def fit_sn(model, sn, lc_tot, data_tot_pets, modelcov=True):
+    from iminuit.warnings import IMinuitWarning
+    import warnings
+    warnings.filterwarnings("ignore", category=IMinuitWarning)
+    try:
+        lc_sn = lc_tot[lc_tot.name==sn]
+        lc_sncosmo=Table.from_pandas(lc_sn[['sn','name','mjd','flux','fluxerr','magsys','exptime','valid','lc','band','mag_sky','seeing','zp']])
 
-    Parameters
-    ----------
-    dset : skysurvey.DataSet
-        Dataset containing the targets and lightcurves.
-    index : np.ndarray or list
-        Indexes of the targets to fit.
-    savefile : str, optional
-        File to pickle the lightcurves, targets and results to.
-        Default ``None`` means not saving.
-    **kwargs : Any
-        All kwargs are passed to ``dset.fit_lightcurves``.
-
-    Return
-    ------
-    results : pandas.Dataframe
-        Converged points and covariance matrices as a dataframe
-    meta : dict list
-        Metadata of the fits, the key ``success`` flags fits that converged
-    """
-
-    logger.log(logging.INFO, f"Running LC fit")
-    if pets:
-        fixed = {
-            "z": dset.targets.data.loc[index, "z"],
-            "t0": dset.targets.data.loc[index, "t0"],
-            # "mwebv": dset.targets.data.loc[index, "mwebv"],
-            # "mwr_v": [3.1]*len(index),
-        }
-
-        guess = {
-            "c": dset.targets.data.loc[index, "c"],
-            "x0": dset.targets.data.loc[index, "x0"],
-            "x1": dset.targets.data.loc[index, "x1"],
-        }
-        bounds = {
-            "c": [[-3, 3]]*len(index),
-            "x0": [[-.1, 10]]*len(index),
-            "x1": [[-5, 5]]*len(index),
-        }
-
-    else:
-        fixed = {
-            "z": dset.targets.data.loc[index, "z"],
-            # "mwebv": dset.targets.data.loc[index, "mwebv"],
-            # "mwr_v": [3.1]*len(index),
-        }
-
-        guess = {
-            "t0": dset.targets.data.loc[index, "t0"],
-            "c": dset.targets.data.loc[index, "c"],
-            "x0": dset.targets.data.loc[index, "x0"],
-            "x1": dset.targets.data.loc[index, "x1"],
-        }
-        bounds = {
-            "t0": dset.targets.data.loc[index, "t0"].apply(lambda x : [x-15, x+30]),
-            "c": [[-3, 3]]*len(index),
-            "x0": [[-.1, 10]]*len(index),
-            "x1": [[-5, 5]]*len(index),
-        }
-
-    params = dict(phase_fitrange=[-40, 80], maxcall=10000, modelcov=True)
-    params.update(kwargs)
-
-    results, meta = dset.fit_lightcurves(
-        source=dset.targets._template._sncosmo_model,
-        index=index,
-        use_dask=False,
-        fixedparams=fixed,
-        guessparams=guess,
-        bounds=bounds,
-        **params,
-    )
-    dset.targets.data['converged'] = False
-
-    for i in index:
-        dset.targets.data.loc[i,'converged'] = meta[(i,"success")]
-
-    if savefile:
-        logger.log(logging.INFO, "Saving")
-        with open(savefile, "wb") as f:
-            pickle.dump(dset.data, f)
-            pickle.dump(dset.targets.data, f)
-            pickle.dump(results, f)
-            pickle.dump(meta, f)
-            logger.log(logging.INFO, "Done")
-    return results, meta
-
+        model.set(z=data_tot_pets[data_tot_pets.name==sn].zhel.values[0],
+                  mwebv=data_tot_pets[data_tot_pets.name==sn].mwebv.values[0], mwr_v=3.1)  # set the model's redshift and MW
+        t0=data_tot_pets[data_tot_pets.name==sn].tmax.values[0]
+        res, _ = sncosmo.fit_lc(lc_sncosmo, model,['t0', 'x0', 'x1', 'c'],
+                                bounds={'x0':(-0.1,10),'x1':(-5, 5),'c':(-3, 3), 't0':(t0-1, t0+1)}, phase_range=None, modelcov=modelcov)
+        return res
+    except:
+        return None
 
 def run_edris(obs, cov, exp, **kwargs):
     """
