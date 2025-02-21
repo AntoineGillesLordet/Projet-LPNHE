@@ -163,8 +163,6 @@ def load_from_skysurvey(path, survey=None):
         data["name"] = data.survey + '_' + data.sn.astype(str)
         lc["name"] = lc.survey + '_' + lc.sn.astype(str)
         data.set_index(data["name"], inplace=True)
-        lc.set_index(lc["name"].values, inplace=True)
-
 
     float32_cols = list(data.select_dtypes(include='float32'))
     data[float32_cols] = data[float32_cols].astype('float64')
@@ -190,10 +188,9 @@ def load_from_pets(path, survey=None):
         lc["name"] = lc.survey + '_' + lc.sn.astype(str)
 
         data.set_index(data["name"], inplace=True)
-        lc.set_index(lc["name"].values, inplace=True)
         
     lc.valid = lc.valid.astype(bool)
     data.valid = data.valid.astype(bool)
     data.valid*=data.name.isin(lc.name)
-    data.rename(columns={'zhel':'z'}, inplace=True)
+    
     return data, lc
