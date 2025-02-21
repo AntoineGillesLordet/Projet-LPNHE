@@ -20,11 +20,11 @@ import logging
 import os
 
 #read SN
-data_ztf=pd.read_csv('mock_sne.csv')
-lc_ztf=pd.read_csv('mock_lc.csv')
+data_ztf=pd.read_csv('../data/pets_uchuu/z0.1/mock_sne.csv')
+lc_ztf=pd.read_csv('../data/pets_uchuu/z0.1/mock_lc.csv')
 data_ztf=data_ztf.sort_values(by=['name'])
 
-Tgrid_folder = '/cfs/data/angi0819/Projet_LPNHE/Tgrid/HSC/'
+Tgrid_folder = '/pscratch/sd/a/agillesl/Documents/Projet_LPNHE/Tgrids/pets_uchuu_0.1/'
 
 modelpath='../data/SALT_snf/'
 m0file='nacl_m0_test.dat'
@@ -62,7 +62,7 @@ def _one_fit(t0, model):
 
 names=np.unique(lc_ztf["name"])
 
-with Parallel(n_jobs=128) as parallel:
+with Parallel(n_jobs=256) as parallel:
     for name in tqdm(names, desc='Treating SN'):
         if os.path.exists(Tgrid_folder+'%s.dat'%name):
             continue

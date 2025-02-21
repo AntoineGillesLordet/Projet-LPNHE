@@ -85,7 +85,7 @@ clfile='nacl_color_law_test.dat'
 
 
 
-with open('/cfs/data/angi0819/Projet_LPNHE/dataset_hsc.pkl', 'rb') as f:
+with open("/pscratch/sd/a/agillesl/Documents/Projet_LPNHE/SN_dataset/dataset_uchuu_0.1.pkl", 'rb') as f:
     # dset = pickle.load(f)
     data = pickle.load(f)
     lc = pickle.load(f)

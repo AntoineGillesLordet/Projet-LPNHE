@@ -25,11 +25,11 @@ m0file='nacl_m0_test.dat'
 m1file='nacl_m1_test.dat'
 clfile='nacl_color_law_test.dat'
 modelpath='../data/SALT_snf/'
-Tgrid_path='/cfs/data/angi0819/Projet_LPNHE/Tgrid/HSC/'
-outdir='Results/'
+Tgrid_path='/pscratch/sd/a/agillesl/Documents/Projet_LPNHE/Tgrids/pets_uchuu/'
+outdir='../data/pets_uchuu/z0.1/'
 
-data=pd.read_csv('mock_sne.csv')
-lc=pd.read_csv('mock_lc.csv')
+data=pd.read_csv('../data/pets_uchuu/z0.1/mock_sne.csv')
+lc=pd.read_csv('../data/pets_uchuu/z0.1/mock_lc.csv')
 
 data=data.sort_values(by=['name'])
 
@@ -245,8 +245,8 @@ def Tmax_chi2(name,lc,data,x1_lim=4,c_lim=1,showfig=False,savefig=False,output_f
 tmax_file="y"#input('Do you want to create Tmax_mock.csv ? y or n: '	)
 
 if tmax_file=='y':
-    with Parallel(n_jobs=64) as parallel:
-        df_Tmax_tot=pd.DataFrame(parallel(delayed(Tmax_chi2)(nn,lc,data,x1_lim=4,c_lim=1,showfig=False,savefig=True,output_fig="/cfs/data/angi0819/Projet_LPNHE/Tgrid/HSC/") for nn in tqdm(name, desc=f'Performing cut on SN')))
+    with Parallel(n_jobs=256) as parallel:
+        df_Tmax_tot=pd.DataFrame(parallel(delayed(Tmax_chi2)(nn,lc,data,x1_lim=4,c_lim=1,showfig=False,savefig=False,output_fig="/pscratch/sd/a/agillesl/Documents/Projet_LPNHE/Tgrids/pets_uchuu/") for nn in tqdm(name, desc='Performing cut on SN')))
     df_Tmax_tot.to_csv(outdir+'Tmax_mock.csv',index=False)
 
 df_Tmax=pd.read_csv(outdir+'Tmax_mock.csv')
