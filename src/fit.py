@@ -19,18 +19,18 @@ except:
 
 from astropy.table import Table
 
-def fit_sn(model, sn, lc_tot, data_tot_pets, modelcov=True):
+def fit_sn(model, sn, lc, data, modelcov=True):
     from iminuit.warnings import IMinuitWarning
     import warnings
     warnings.filterwarnings("ignore", category=IMinuitWarning)
     try:
-        lc_sn = lc_tot[lc_tot.name==sn]
+        lc_sn = lc.loc[sn]
         lc_sncosmo=Table.from_pandas(lc_sn[['sn','name','mjd','flux','fluxerr','magsys','exptime','valid','lc','band','mag_sky','seeing','zp']])
 
-        model.set(z=data_tot_pets[data_tot_pets.name==sn].zhel.values[0],
-                  mwebv=data_tot_pets[data_tot_pets.name==sn].mwebv.values[0], mwr_v=3.1)  # set the model's redshift and MW
-        t0=data_tot_pets[data_tot_pets.name==sn].tmax.values[0]
-        res, _ = sncosmo.fit_lc(lc_sncosmo, model,['t0', 'x0', 'x1', 'c'],
+        model.set(z=data.loc[sn, "z"],
+                  mwebv=data.loc[sn, 'mwebv'], mwr_v=3.1)  # set the model's redshift and MW
+        t0=data.loc[sn, 'tmax']
+        res, _ = sncosmo.fit_lc(lc_sncosmo, model, ['t0', 'x0', 'x1', 'c'],
                                 bounds={'x0':(-0.1,10),'x1':(-5, 5),'c':(-3, 3), 't0':(t0-1, t0+1)}, phase_range=None, modelcov=modelcov)
         return res
     except:
