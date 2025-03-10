@@ -79,13 +79,14 @@ class SNeIa_full_bgs(Transient):
         # USE THIS AREA WHEN DRAWING TO ACCOUNT FOR THE CATALOG FOOTPRINT
         # e.g. SNeIa_full_bgs().draw(skyarea=SNeIa_full_bgs().area)
 
-    def get_effective_area(self, nside=256):
+    def get_effective_area(self):
+        nside = int(2**(np.floor(np.log2(np.sqrt(self.galaxy_positions.shape[0]/(10*12))))-1))
         id_bgs = ang2pix(theta=np.pi / 2 - self.galaxy_positions["dec"] * np.pi / 180,
-                         phi=self.galaxy_positions["ra"] * np.pi / 180,
-                         nside=nside)
+                            phi=self.galaxy_positions["ra"] * np.pi / 180,
+                            nside=nside)
 
         mask = np.zeros(nside2npix(nside), dtype=bool)
         for i in id_bgs:
             mask[i] = True
-        
+
         return np.sum(mask)*nside2pixarea(nside, degrees=True)
