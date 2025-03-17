@@ -9,15 +9,19 @@ from matplotlib.colors import Normalize
 from numpy.lib.histograms import _get_bin_edges
 import jax.numpy as jnp
 
-color_band = {"ztfi":"black",
+color_band = {"ztfi":"olive",
              "ztfr":"purple",
-             "ztfg":"cyan",
+             "ztfg":"limegreen",
              "megacam6::z":"blue",
              "megacam6::r":"red",
              "megacam6::g":"green",
              "megacam6::i2":"orange",
+             "hsc::Y":"turquoise",
+             "hsc::g":"olivedrab",
+             "hsc::i2":"gray", 
+             "hsc::r2":"darkred",
+             "hsc::z":"gold",
              }
-
 
 def corner_(data, var_names=None, labels=None, fig=None, title=None, return_fig=False, **kwargs):
     """
