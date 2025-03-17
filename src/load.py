@@ -104,6 +104,7 @@ def extract_hsc(path='data/hsc_logs_realistic_skynoise.csv'):
     from shapely import geometry
     survey = skysurvey.Survey.from_pointings(pandas.read_csv(path, index_col=0), 
                                              geometry.Point(0,0).buffer(0.7))
+    return survey
 
 
 def make_tds_from_pets(sne_data, lc_data, sp_data, sigma_x1_lim=0.2, sigam_c_lim=0.02):
