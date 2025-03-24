@@ -80,7 +80,7 @@ class SNeIa_full_bgs(Transient):
         # e.g. SNeIa_full_bgs().draw(skyarea=SNeIa_full_bgs().area)
 
     def get_effective_area(self):
-        nside = int(2**(np.floor(np.log2(np.sqrt(self.galaxy_positions.shape[0]/(10*12))))-1))
+        nside = 2**(np.int32(np.log2(np.sqrt(self.galaxy_positions.shape[0]/(10*12))))-1)
         id_bgs = ang2pix(theta=np.pi / 2 - self.galaxy_positions["dec"] * np.pi / 180,
                             phi=self.galaxy_positions["ra"] * np.pi / 180,
                             nside=nside)
