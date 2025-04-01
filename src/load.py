@@ -156,15 +156,13 @@ def load_from_skysurvey(path, survey=None):
     with open(path, 'rb') as f:
         data = pickle.load(f)
         lc = pickle.load(f)
-    data["sn"] = data.index
-    lc["sn"] = lc.index.get_level_values(0)
     if survey:
         data["survey"] = survey
         lc["survey"] = survey
-        data["name"] = data.survey + '_' + data.sn.astype(str)
-        lc["name"] = lc.survey + '_' + lc.sn.astype(str)
-        data.set_index(data["name"], inplace=True)
-        lc.set_index(lc["name"].values, inplace=True)
+        data["sn"] = data.survey + '_' + data.index.astype(str)
+        lc["sn"] = lc.survey + '_' + lc.index.get_level_values(0).astype(str)
+        data.set_index(data["sn"], inplace=True)
+        lc.set_index(lc["sn"].values, inplace=True)
 
 
     float32_cols = list(data.select_dtypes(include='float32'))
