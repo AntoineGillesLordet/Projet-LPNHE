@@ -8,6 +8,7 @@ import healpy
 from tqdm.auto import tqdm
 from .logging import logger
 import logging
+import os
 
 from nacl.dataset import TrainingDataset
 from nacl.models.salt2 import SALT2Like
@@ -24,21 +25,21 @@ def load_bgs(
 ):
     try:
         if filename[0] == "/":
-            filepath=filename
-        else:
-            filepath = glob("../../**/" + filename, recursive=True)[0]
-        df = pandas.read_csv(filepath, index_col=0)
+            filename=filename
+        elif not os.path.exists(filename):
+            filename = glob("../../**/" + filename, recursive=True)[0]
+        df = pandas.read_csv(filename, index_col=0)
         if (
             set(map(lambda s: s.lower(), columns))
             .difference({"status", "in_desi"})
             .issubset(set(df.columns))
         ):
-            logger.log(logging.INFO, f"Found .csv file at {filepath} with columns {df.columns}")
+            logger.log(logging.INFO, f"Found .csv file at {filename} with columns {df.columns}")
             return df
         else:
             logger.log(
                 logging.INFO,
-                f"Found file {filepath} at with columns {df.columns} but columns {columns} were prompted, loading from the fits file",
+                f"Found file {filename} at with columns {df.columns} but columns {columns} were prompted, loading from the fits file",
             )
     except IndexError:
         logger.log(logging.WARNING, f"No file named {filename} around here, trying to load from fits file")
@@ -76,9 +77,10 @@ def extract_ztf(path='data/ztf_survey.pkl', start_time=58179, end_time=59215):
     logger.log(logging.INFO, "Loading ZTF survey")
     with open(path, "rb") as file:
         survey = pickle.load(file)
-    survey.set_data(
-        survey.data[(survey.data["mjd"] > start_time) & (survey.data["mjd"] < end_time)]
-    )
+    if start_time and end_time:
+        survey.set_data(
+            survey.data[(survey.data["mjd"] > start_time) & (survey.data["mjd"] < end_time)]
+        )
     return survey
 
 def extract_snls(path='data/snls_obslogs_cured.csv'):
