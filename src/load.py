@@ -76,11 +76,12 @@ def extract_ztf(path='data/ztf_survey.pkl', start_time=58179, end_time=59215):
     """
     logger.log(logging.INFO, "Loading ZTF survey")
     with open(path, "rb") as file:
-        survey = pickle.load(file)
+        ztf = pickle.load(file)
     if start_time and end_time:
-        survey.set_data(
-            survey.data[(survey.data["mjd"] > start_time) & (survey.data["mjd"] < end_time)]
+        ztf.set_data(
+            ztf.data[(survey.data["mjd"] > start_time) & (survey.data["mjd"] < end_time)]
         )
+    ztf.data.band = ztf.data.band.replace({'ztfi':'ztf::i', 'ztfr':'ztf::r', 'ztfg':'ztf::g'})
     return survey
 
 def extract_snls(path='data/snls_obslogs_cured.csv'):
@@ -95,8 +96,8 @@ def extract_snls(path='data/snls_obslogs_cured.csv'):
                                         'D3': {'ra': 214.90738, 'dec': +52.6660},
                                         'D4': {'ra': 333.89903, 'dec': -17.71961}},)
 
-    snls.data.band = snls.data.band.apply(lambda x : 'megacam6::' + x[-1])
-    snls.data.replace({'megacam6::i':'megacam6::i2', 'megacam6::y':'megacam6::i2'}, inplace=True)
+    snls.data.band = snls.data.band.apply(lambda x : 'MEGACAM6::' + x.split(':')[-1])
+    snls.data.replace({'MEGACAM6::y':'MEGACAM6::i2'}, inplace=True)
     return snls
 
 def extract_hsc(path='data/hsc_logs_realistic_skynoise.csv'):
@@ -104,9 +105,9 @@ def extract_hsc(path='data/hsc_logs_realistic_skynoise.csv'):
     Load the hsc logs and create the survey
     """
     from shapely import geometry
-    survey = skysurvey.Survey.from_pointings(pandas.read_csv(path, index_col=0), 
-                                             geometry.Point(0,0).buffer(0.7))
-    return survey
+    hsc = skysurvey.Survey.from_pointings(pandas.read_csv(path, index_col=0), 
+                                          geometry.Point(0,0).buffer(0.7))
+    return hsc
 
 
 def make_tds_from_pets(sne_data, lc_data, sp_data, sigma_x1_lim=0.2, sigam_c_lim=0.02):
