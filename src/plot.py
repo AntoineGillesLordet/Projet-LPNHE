@@ -98,7 +98,7 @@ def scatter_mollweide(data, ax=None, degrees=True, **kwargs):
         fig = plt.figure()
         ax = fig.add_subplot(projection="mollweide")
 
-    params = dict(s=1, color="k", alpha=0.3, marker=".")
+    params = dict(s=1, alpha=0.3, marker=".")
     params.update(kwargs)
     if degrees:
         ax.scatter(
