@@ -79,10 +79,10 @@ def extract_ztf(path='data/ztf_survey.pkl', start_time=58179, end_time=59215):
         ztf = pickle.load(file)
     if start_time and end_time:
         ztf.set_data(
-            ztf.data[(survey.data["mjd"] > start_time) & (survey.data["mjd"] < end_time)]
+            ztf.data[(ztf.data["mjd"] > start_time) & (ztf.data["mjd"] < end_time)]
         )
     ztf.data.band = ztf.data.band.replace({'ztfi':'ztf::i', 'ztfr':'ztf::r', 'ztfg':'ztf::g'})
-    return survey
+    return ztf
 
 def extract_snls(path='data/snls_obslogs_cured.csv'):
     """
