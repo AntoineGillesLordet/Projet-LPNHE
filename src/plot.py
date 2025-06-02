@@ -101,13 +101,13 @@ def scatter_mollweide(data, ax=None, degrees=True, **kwargs):
     params = dict(s=1, alpha=0.3, marker=".")
     params.update(kwargs)
     if degrees:
-        ax.scatter(
+        return ax.scatter(
             (data["ra"] - 360 * (data["ra"] > 180)) * np.pi / 180,
             data["dec"] * np.pi / 180,
             **params,
         )
     else:
-        ax.scatter(
+        return ax.scatter(
             data["ra"] - 2*np.pi * (data["ra"] > np.pi),
             data["dec"],
             **params,
