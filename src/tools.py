@@ -300,3 +300,24 @@ def mag_Planck18(x):
 
 def mag_Planck15(x):
     return jnp.array(Planck15.distmod(np.array(x))) - 19.3
+
+def wrapp_around(ra, dec, unit_in='degree', unit_out='rad'):
+    if unit_in=='rad':
+        ra*=180/np.pi
+        dec*=180/np.pi
+    elif unit_in!='degree':
+        raise KeyError(f"Incoming unit should be either 'rad' or 'degree' but {unit_in} was provided")
+    flip = dec > 90
+    dec[flip] = 90 - dec[flip]
+    ra[flip] += 180
+
+    flip = dec < -90
+    dec[flip] = -90 - dec[flip]
+    ra[flip] -= 180
+    ra = np.mod(ra + 180, 360) - 180
+    if unit_out=='degree':
+        return ra, dec
+    elif unit_out=='rad':
+        return ra*np.pi/180, dec*np.pi/180
+    else:
+        raise KeyError(f"Returned unit should be either 'rad' or 'degree' but {unit_out} was provided")
