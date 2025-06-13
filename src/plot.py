@@ -9,6 +9,8 @@ from matplotlib.colors import Normalize
 from numpy.lib.histograms import _get_bin_edges
 import jax.numpy as jnp
 
+from .tools import wrapp_around
+
 color_band = {"ztfi":"olive",
              "ztfr":"purple",
              "ztfg":"limegreen",
@@ -78,7 +80,7 @@ def corner_(data, var_names=None, labels=None, fig=None, title=None, return_fig=
         return fig
 
 
-def scatter_mollweide(data, ax=None, degrees=True, **kwargs):
+def scatter_mollweide(data, ax=None, unit="degree", rot=(0,0), **kwargs):
     """
     Wrapper around ``matplotlib.scatter`` for quick plotting of a dataset in mollweide projection
 
@@ -88,8 +90,8 @@ def scatter_mollweide(data, ax=None, degrees=True, **kwargs):
         Data to plot, should contain columns labeled ``["ra", "dec"]``.
     ax : matplotlib.projection.geo.MollweideAxes, optional
         MollweideAxes instance to plot on, if not provided creates a new figure.
-    degrees : bool, optional
-        Wether given coordinates are in degrees or rad.
+    unit : str, optional
+        Wether given coordinates are in 'degree' or 'rad'. Default is 'degree',
     **kwargs : Any
         All kwargs are passed to ``matplotlib.scatter``.
     """
@@ -100,19 +102,14 @@ def scatter_mollweide(data, ax=None, degrees=True, **kwargs):
 
     params = dict(s=1, alpha=0.3, marker=".")
     params.update(kwargs)
-    if degrees:
-        return ax.scatter(
-            (data["ra"] - 360 * (data["ra"] > 180)) * np.pi / 180,
-            data["dec"] * np.pi / 180,
-            **params,
-        )
-    else:
-        return ax.scatter(
-            data["ra"] - 2*np.pi * (data["ra"] > np.pi),
-            data["dec"],
-            **params,
-        )
 
+    ra, dec = data["ra"] - rot[0], data["dec"] - rot[1]
+
+    return ax.scatter(
+            *wrapp_around(ra,dec, unit_in=unit, unit_out='rad'),
+            **params,
+        )
+    
 
 def scatter_3d(x, y, z, bins=50):
     """
