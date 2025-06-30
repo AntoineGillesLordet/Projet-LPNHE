@@ -321,3 +321,50 @@ def wrapp_around(ra, dec, unit_in='degree', unit_out='rad'):
         return ra*np.pi/180, dec*np.pi/180
     else:
         raise KeyError(f"Returned unit should be either 'rad' or 'degree' but {unit_out} was provided")
+
+
+def halo_den_profile(r, rho, R, alpha=0.16):
+    """
+    Einasto profile for halo density
+    """
+    return rho*np.exp(-2/alpha*(np.power(r/R, alpha) - 1))
+
+
+def gen_mask(nside):
+    """
+    Quick generation of the ztf mask for healpy maps
+    
+    """
+    import ztffields
+    good_fields = ztffields.get_fieldid(galb_range=[[-90,-10],[10,90]])
+
+    
+    ra_pix, dec_pix = healpy.pix2ang(nside, np.arange(healpy.nside2npix(nside)), lonlat=True)
+    radecs_pix = pandas.DataFrame({"ra":ra_pix, "dec":dec_pix})
+    hp_pix_to_ztf_field = ztffields.radec_to_fieldid(radecs_pix)
+    filt_pix = hp_pix_to_ztf_field[~hp_pix_to_ztf_field.isin(good_fields).groupby('index_radec').any()].index
+    mask = np.zeros(healpy.nside2npix(nside))
+    mask[filt_pix] = 1
+    mask[dec_pix < -30] = 1
+    return mask
+
+
+def create_map(halos, nside, map=None, col=None,):
+    """
+    Create a healpy map from a halo catalog
+    """
+    
+    return_map = map is None
+    if return_map:
+        map = np.zeros(healpy.nside2npix(nside))
+    index = healpy.ang2pix(nside, halos.ra, halos.dec, lonlat=True)
+    if col=='mass':
+        pix_value = pandas.DataFrame({'pix_id':index, 'h_mass':halos.BoundM200Crit.values}).groupby('pix_id').sum()
+    elif col=='vpec':
+        pix_value = pandas.DataFrame({'pix_id':index, 'h_vpec':halos.vpec.values}).groupby('pix_id').mean()
+    else:
+        pix_value = pandas.DataFrame({'pix_id':index, 'h_mass':np.ones(index.shape)}).groupby('pix_id').count()
+    for pix_id in pix_value.index:
+        map[pix_id] += pix_value.loc[pix_id].values[0]
+    if return_map:
+        return map
