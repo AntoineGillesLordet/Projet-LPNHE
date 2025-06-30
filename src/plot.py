@@ -110,6 +110,52 @@ def scatter_mollweide(data, ax=None, unit="degree", rot=(0,0), **kwargs):
             **params,
         )
     
+def add_clusters(clusters, ax=None, color="tab:red"):
+    """
+    Scatter + labels for a cluster list
+    """
+    if ax==None:
+        ax=plt.gca()    
+    scatter_mollweide(clusters, ax=ax, marker='*', color=color, s=50, alpha=1)
+    for name, ra, dec in clusters[["name", "ra", "dec"]].values:
+        ax.text(ra*np.pi/180 - 2*np.pi*(ra > 180) +0.03, dec*np.pi/180 +0.03, name, fontsize=7, color=color)
+
+def add_skymap(ax, skymap, cmap='viridis', colorbar=True, shrink=0.8, pad=0.05, aspect=50, cb_label=None, rm_ticks=True, **kwargs):
+    """
+    Skymap handling as a matplotlib pcolormesh instead of the weird shenaningans healpy does to axes and figures.
+    """
+    kwargs_projview = dict(flip="geo", projection_type="mollweide")
+    kwargs_projview.update({k:v for k, v in kwargs.items() if k in healpy.projview.__code__.co_varnames})
+    other_kwargs={k:v for k, v in kwargs.items() if (k not in healpy.projview.__code__.co_varnames) or (k == 'norm')}
+    ra_, dec_, map_ = healpy.projview(skymap, return_only_data=True, **kwargs_projview)
+    pmesh = ax.pcolormesh(ra_, dec_, map_, cmap=cmap, rasterized=True, **other_kwargs)
+    if colorbar:        
+        cb = plt.colorbar(pmesh, ax=ax, orientation='horizontal', shrink=shrink, pad=pad, aspect=aspect)
+        cb.ax.tick_params(labelsize=8)
+        cb.set_label(label=cb_label, fontsize=12)
+    if rm_ticks:    
+        ax.set_xticklabels([])
+        ax.set_yticklabels([])
+    return pmesh
+
+def add_grid(ax, t_step=30, p_step=60, rot=[0], **kwargs):
+    """
+    Graticule for mollweide projection (stolen from healpy)
+    """
+    default_style = dict(linewidth = 0.75, linestyle="-", color="grey", alpha=0.8)
+    default_style.update(**kwargs)
+
+    rotated_grid_lines, _ = healpy.newvisufunc.CreateRotatedGraticule(rot=rot, t_step=t_step, p_step=p_step)
+
+    for g_line in rotated_grid_lines:
+        ax.plot(*g_line, **default_style)
+    thetaSpacing = np.arange(-90, 90 + t_step, t_step)
+    phiSpacing = np.arange(-180, 180 + p_step, p_step)
+    ax.set_yticks(thetaSpacing[1:-1]*np.pi/180, list(map(lambda x: f'{x:0d}°', thetaSpacing[1:-1])))
+    ax.set_xticks(phiSpacing[1:-1]*np.pi/180, list(map(lambda x: f'{x+360*(x < 0):0d}°', phiSpacing[1:-1])))
+    ax.tick_params(labelsize=7)
+
+
 
 def scatter_3d(x, y, z, bins=50):
     """
