@@ -3,6 +3,7 @@ from edris.models import FullCovariance, Obs
 import jax.numpy as jnp
 import numpy as np
 import pandas
+import healpy
 
 from astropy.cosmology import Planck18, Planck15
 from edris.tools import log_bins
