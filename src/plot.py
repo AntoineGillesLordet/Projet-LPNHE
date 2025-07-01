@@ -8,6 +8,7 @@ import matplotlib.cm as cm
 from matplotlib.colors import Normalize
 from numpy.lib.histograms import _get_bin_edges
 import jax.numpy as jnp
+import healpy
 
 from .tools import wrapp_around
 
