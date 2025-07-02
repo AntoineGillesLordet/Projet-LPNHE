@@ -12,7 +12,6 @@ import os
 
 from nacl.dataset import TrainingDataset
 from nacl.models.salt2 import SALT2Like
-from nacl.specutils import clean_and_project_spectra
 
 from lemaitre import bandpasses
 filterlib = bandpasses.get_filterlib()
@@ -108,48 +107,6 @@ def extract_hsc(path='data/hsc_logs_realistic_skynoise.csv'):
     hsc = skysurvey.Survey.from_pointings(pandas.read_csv(path, index_col=0), 
                                           geometry.Point(0,0).buffer(0.7))
     return hsc
-
-
-def make_tds_from_pets(sne_data, lc_data, sp_data, sigma_x1_lim=0.2, sigam_c_lim=0.02):
-    """
-    Construct a NaCl training dataset from pets output sn and lc tables.
-    Additionally apply cuts on the x1 and c errors.
-    """
-    sne_data.valid=sne_data.valid.astype(bool)
-    sne_data["valid"] = sne_data["valid"] & (sne_data["err_x1"] < sigma_x1_lim) & (sne_data["err_c"] < sigam_c_lim)
-    sne_data.rename(columns={'t0':'tmax', 'zhel':'z'}, inplace=True)
-
-    lc_data.set_index([lc_data.sn, lc_data.index], inplace=True)
-    lc_data.index.names= [None, None]
-    lc_data['x'] = 0.
-    lc_data['y'] = 0.
-    lc_data['sensor_id'] = 0
-    lc_data.rename(columns={"time":"mjd"}, inplace=True)
-    lc_data.index.names = [None, None]
-    lc_data.valid=lc_data.valid.astype(bool)
-    
-    sp_data['i_basis'] = 0
-    sp_data.valid=sp_data.valid.astype(bool)
-    sp_data.rename(columns={"snid":"sn", "time":"mjd", 'flux_true':'fluxtrue'}, inplace=True)
-
-    # Clean points corresponding to invalid SN
-    for sn in tqdm(sne_data.sn[~sne_data.valid], desc="Clearing LC and spectra according to PeTs"):
-        sp_data.loc[sp_data['sn']==sn, "valid"] = False
-        lc_data.loc[lc_data['sn']==sn, "valid"] = False
-
-    tds = TrainingDataset(sne=sne_data.to_records(),
-                          lc_data=lc_data.to_records(),
-                          spec_data=sp_data.to_records(),
-                          filterlib=filterlib)
-    SALT2Like.flag_out_of_range_datapoints(tds, wl_range=(2000., 11000.), basis_knots=[200, 20], compress=True)
-    model = SALT2Like(tds)
-    # Project spectra onto spline basis
-    projected_spectra, in_error = clean_and_project_spectra(tds, model.basis.bx)
-    
-    return TrainingDataset(tds.sn_data.nt, lc_data=tds.lc_data.nt,
-                           spec_data=np.rec.array(np.hstack(projected_spectra)),
-                           basis=model.basis.bx,
-                           filterlib=filterlib)
 
 def load_from_skysurvey(path, survey=None):
     """
