@@ -15,74 +15,6 @@ except:
     tqdm = lambda x: x
 
 
-def dset_sanitize_and_filter(dset, return_index=True, all_pts=False):
-    """
-    Flags SN that are detected with the key ``keep`` and those that pass some cuts for lightcurve fitting with ``valid``.
-
-    Parameters
-    ----------
-    dset : skysurvey.DataSet
-        DataSet of the SN containing both the targets data and lightcurves
-    return_index : bool, optional
-        If True, returns the index of the SN that will be fitted as a list, otherwise only the dset.targets.data dataframe will be updated
-    """
-    logger.log(logging.INFO, "Correcting rate to observations and filtering based on observations")
-
-    if all_pts:
-        dset.data["detected"] = True
-    else:
-        dset.data["detected"] = (dset.data["flux"] / dset.data["fluxerr"]) > 5
-
-    dset.targets.data["keep"] = False
-    dset.targets.data["valid"] = False
-
-    bands = np.unique(dset.data["band"])
-
-    ids = np.unique(list(map(lambda x: x[0], dset.data.index)))
-    for i in tqdm(ids):
-        target = dset.targets.data.loc[i]
-        obs_data = dset.data.loc[i]
-        # Flags SN that were not observed to correct the rate
-        dset.targets.data.loc[i, "keep"] = np.any(
-            obs_data["time"].between(target["t0"] - 10, target["t0"] + 15)
-        )
-
-        dset.targets.data.loc[i, "valid"] = (
-            dset.targets.data.loc[i, "keep"]  # SN should be observed
-            and np.sum(
-                [
-                    np.sum(
-                        obs_data[obs_data["detected"] & (obs_data["band"] == b)][
-                            "time"
-                        ].between(target["t0"] - 30, target["t0"] + 100)
-                    )
-                    >= 5
-                    for b in bands
-                ]
-            ) >= 2 # Two bands should have 5 or more data points
-            and (
-                np.sum(
-                    obs_data[obs_data["detected"]]["time"].between(
-                        target["t0"] - 30, target["t0"]
-                    )
-                )
-                > 1
-            )  # At least one data point before t0
-            and (
-                np.sum(
-                    obs_data[obs_data["detected"]]["time"].between(
-                        target["t0"], target["t0"] + 100
-                    )
-                )
-                > 1
-            )  # At least one data point after t0
-        )
-    logger.log(logging.INFO, "Done")
-
-    if return_index:
-        return dset.targets.data[dset.targets.data["valid"]].index
-
-
 def X0X1C_to_MbX1C(values, cov, M0=10.501612, alpha=0.14, beta=3.15):
     """
     Transforms a (x0,x1,c) data set with their covariance matrix to a (Mb, x1, c) data set with the corresponding covariance matrix
@@ -295,14 +227,62 @@ def edris_filter(exp, cov, obs, data):
     return exp, cov_sel, obs
 
 
-def mag_Planck18(x):
-    return jnp.array(Planck18.distmod(np.array(x))) - 19.3
+def mag_Planck18(z, M=-19.3):
+    """
+    Wrapper to get the theoritcal magnitude from redshifts using Planck18 
+    
+    Parameters
+    ----------
+    z : arraylike
+        Redshifts list
+    M : float
+        Magnitude shift to apply, default to the absolute magnitude for SNe Ia (-19.3)
+    Return
+    ------
+    mag : jax.numpy.array
+        Corresponding magnitude
+    """
+    return jnp.array(Planck18.distmod(np.array(z))) + M
 
 
-def mag_Planck15(x):
-    return jnp.array(Planck15.distmod(np.array(x))) - 19.3
+def mag_Planck15(z):
+    """
+    Wrapper to get the theoritcal magnitude from redshifts using Planck15
+    
+    Parameters
+    ----------
+    z : arraylike
+        Redshifts list
+    M : float
+        Magnitude shift to apply, default to the absolute magnitude for SNe Ia (-19.3)
+    Return
+    ------
+    mag : jax.numpy.array
+        Corresponding magnitude
+    """
+    return jnp.array(Planck15.distmod(np.array(z))) + M
 
 def wrapp_around(ra, dec, unit_in='degree', unit_out='rad'):
+    """
+    Wrapps (ra,dec) coordinates on the sphere such that -180°<ra<180° and -90°<dec<90°.
+    Default configuration also converts inputes in degree to radians for easy mollweide scatter plots with matplotlib.
+
+    Parameters
+    ----------
+    ra : array (N,)
+        Right ascension
+    dec : array (N,)
+        Declination
+    unit_in : str, optional
+        Unit of the inputs, either ``'rad'`` or ``'degree'``.
+    unit_out : str, optional
+        Unit for the outputs, either ``'rad'`` or ``'degree'``.
+
+    Return
+    ------
+    ra, dec : arraylike (N,), arraylike (N,)
+        New radec coordinates, in the units of ``unit_out``
+    """
     if unit_in=='rad':
         ra*=180/np.pi
         dec*=180/np.pi
@@ -326,18 +306,42 @@ def wrapp_around(ra, dec, unit_in='degree', unit_out='rad'):
 
 def halo_den_profile(r, rho, R, alpha=0.16):
     """
-    Einasto profile for halo density
+    Einasto profile for halo density.
+    
+    Parameters
+    ----------
+    r : array
+        Distance to halo center (arbitrary units) 
+    rho : array
+        Normalizing density
+    R : array
+        Halo radius (arbitrary units)
+    alpha : array, optional
+        Degree of curvature. Usual value for DM halo density is 0.16.  
     """
     return rho*np.exp(-2/alpha*(np.power(r/R, alpha) - 1))
 
 
-def gen_mask(nside):
+def gen_mask(nside, galb_range=[[-90,-10],[10,90]], dec_cut=-30):
     """
-    Quick generation of the ztf mask for healpy maps
+    Quick generation of the ztf mask for healpy maps.
     
+    Parameters
+    ----------
+    nside : int
+        `nside` parameter for healpy
+    galb_range : 2x2 list, optional
+        Range of the ztf fields cut w.r.t. the galactic plane 
+    dec_cut : float, optional
+        Global declination cut
+
+    Return
+    ------
+    mask : int array
+        Healpy map, 1 means the corresponding pixel IS NOT in the ZTF footprint
     """
     import ztffields
-    good_fields = ztffields.get_fieldid(galb_range=[[-90,-10],[10,90]])
+    good_fields = ztffields.get_fieldid(galb_range=galb_range)
 
     
     ra_pix, dec_pix = healpy.pix2ang(nside, np.arange(healpy.nside2npix(nside)), lonlat=True)
@@ -346,23 +350,43 @@ def gen_mask(nside):
     filt_pix = hp_pix_to_ztf_field[~hp_pix_to_ztf_field.isin(good_fields).groupby('index_radec').any()].index
     mask = np.zeros(healpy.nside2npix(nside))
     mask[filt_pix] = 1
-    mask[dec_pix < -30] = 1
+    mask[dec_pix < ] = 1
     return mask
 
 
-def create_map(halos, nside, map=None, col=None,):
+def create_map(catalog, nside=64, map=None, col=None,):
     """
     Create a healpy map from a halo catalog
+    
+    Parameters
+    ----------
+    catalog : pandas.DataFrame
+        Catalog data to use to generate the map.
+    nside : int, optional
+        ``nside`` parameter for healpy.
+    map : arraylike, optional
+        Alternatively adds current catalog to an already existing map.
+        Using this option recovers the nside parameter of the map.
+    col : str, optional
+        One of ``['mass', 'vpec', None]``. If ``None``, performs a simple count map.
+        Otherwise use the relevant quantity.
+
+    Return
+    ------
+    map : array or None
+        If a map was provided, it is updated and not returned. Otherwise return the new map.
     """
     
     return_map = map is None
     if return_map:
         map = np.zeros(healpy.nside2npix(nside))
-    index = healpy.ang2pix(nside, halos.ra, halos.dec, lonlat=True)
+    else:
+        nside = healpy.npix2nside(map.shape[0])
+    index = healpy.ang2pix(nside, catalog.ra, catalog.dec, lonlat=True)
     if col=='mass':
-        pix_value = pandas.DataFrame({'pix_id':index, 'h_mass':halos.BoundM200Crit.values}).groupby('pix_id').sum()
+        pix_value = pandas.DataFrame({'pix_id':index, 'h_mass':catalog.BoundM200Crit.values}).groupby('pix_id').sum()
     elif col=='vpec':
-        pix_value = pandas.DataFrame({'pix_id':index, 'h_vpec':halos.vpec.values}).groupby('pix_id').mean()
+        pix_value = pandas.DataFrame({'pix_id':index, 'h_vpec':catalog.vpec.values}).groupby('pix_id').mean()
     else:
         pix_value = pandas.DataFrame({'pix_id':index, 'h_mass':np.ones(index.shape)}).groupby('pix_id').count()
     for pix_id in pix_value.index:

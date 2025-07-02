@@ -268,16 +268,25 @@ def plot_res(data, data_truth, col, label, unit=None, log=False, linthresh=1e-3)
 
 potential_keys = ['H0', 'M0', 'Omega_m', 'Omega_r', 'Omega_l', 'coef', 'sigma_int']
 latex_keys = {'H0': '$H_0$',
-  'M0': '$M_0$',
-  'Omega_m': '$\\Omega_m$',
-  'Omega_r': '$\\Omega_r$',
-  'Omega_l': '$\\Omega_l$',
-  'coef': ['$\\alpha$', '$\\beta$'],
-  'sigma_int': '$\\sigma_{int}$'}
+              'M0': '$M_0$',
+              'Omega_m': '$\\Omega_m$',
+              'Omega_r': '$\\Omega_r$',
+              'Omega_l': '$\\Omega_l$',
+              'coef': ['$\\alpha$', '$\\beta$'],
+              'sigma_int': '$\\sigma_{int}$'}
     
 def plot_edris_biais(res, x0, cov_res):
     """
     Plot for the bias in the edris parameters, could be enhanced
+    
+    Parameters
+    ----------
+    res : dict
+        Edris result
+    x0 : dict
+        True values
+    cov_res : dict
+        Edris output covariance
     """
     fig, ax = plt.subplots(figsize=(5,5))
     keys = np.array(list(res.keys()))[[p in potential_keys for p in res.keys()]]
@@ -305,6 +314,21 @@ def plot_edris_biais(res, x0, cov_res):
 def plot_hubble(obs, exp, res, cov_res, cosmo, x0):
     """
     Hubble diagram for edris output and comparison between true and reconstructed cosmology.
+    
+    Parameters
+    ----------
+    obs : edris.Obs
+        Observations containing magnitudes and some standardisation variables
+    exp : dict
+        Explanatory variables. Contains the redshifts of the SN in ``z`` and the redshift bins in ``z_bins``.
+    res : dict
+        Edris results
+    cov_res : dict
+        Edris output covariance
+    cosmo : func
+        Cosmology as ``cosmo(x0, dict(z=[...]))``, as used by edris.
+    x0 : dict
+        True values
     """
     std_mag = obs.mag - jnp.matmul(res["coef"], res["variables"])
 
@@ -416,8 +440,9 @@ def plot_lc_index(index, lc_data, sne_data=None):
                     )
     if sne_data is not None:
         plt.axvline(sne_data.loc[index, "tmax"], color="purple", label=r"$t_0$")
-        plt.axvline(sne_data.loc[index, "tmax"] - sne_data.loc[index, "err_tmax"], color="purple", linestyle=":")
-        plt.axvline(sne_data.loc[index, "tmax"] + sne_data.loc[index, "err_tmax"], color="purple", linestyle=":")
+        if err_tmax in sne_data.columns:
+            plt.axvline(sne_data.loc[index, "tmax"] - sne_data.loc[index, "err_tmax"], color="purple", linestyle=":")
+            plt.axvline(sne_data.loc[index, "tmax"] + sne_data.loc[index, "err_tmax"], color="purple", linestyle=":")
     
     plt.title(f"SN {index}")
     plt.legend()
