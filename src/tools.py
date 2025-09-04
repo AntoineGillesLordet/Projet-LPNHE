@@ -283,6 +283,7 @@ def wrapp_around(ra, dec, unit_in='degree', unit_out='rad'):
     ra, dec : arraylike (N,), arraylike (N,)
         New radec coordinates, in the units of ``unit_out``
     """
+    ra, dec = np.asarray(ra), np.asarray(dec)
     if unit_in=='rad':
         ra*=180/np.pi
         dec*=180/np.pi
