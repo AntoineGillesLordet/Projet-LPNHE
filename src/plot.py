@@ -22,12 +22,25 @@ color_band = {"ztfi":"olive",
              "megacam6::r":"red",
              "megacam6::g":"green",
              "megacam6::i2":"orange",
+             "megacam6::i":"orange",
              "hsc::Y":"turquoise",
              "hsc::g":"olivedrab",
              "hsc::i2":"gray", 
              "hsc::r2":"darkred",
              "hsc::z":"gold",
              }
+
+def set_rc():
+    """
+    Set some matplotlib rc params to get clean plots for papers
+    """
+    plt.rc('axes', labelsize=16, linewidth=2.)
+    plt.rc('xtick', labelsize=14)
+    plt.rc('xtick.major', width=2)
+    plt.rc('ytick', labelsize=14)
+    plt.rc('ytick.major', width=2)
+    plt.rc('legend', fontsize=12)
+    plt.rc('figure', titleweight='bold')
 
 def corner_(data, var_names=None, labels=None, fig=None, title=None, return_fig=False, **kwargs):
     """
@@ -124,7 +137,9 @@ def add_clusters(clusters, ax=None, color="tab:red"):
     for name, ra, dec in clusters[["name", "ra", "dec"]].values:
         ax.text(ra*np.pi/180 - 2*np.pi*(ra > 180) +0.03, dec*np.pi/180 +0.03, name, fontsize=7, color=color)
 
-def add_skymap(ax, skymap, cmap='viridis', colorbar=True, shrink=0.8, pad=0.05, aspect=50, cb_label=None, rm_ticks=True, **kwargs):
+def add_skymap(ax, skymap, cmap='viridis', colorbar=True, location='bottom', shrink=0.8, pad=0.05, aspect=50, cb_label=None, rm_ticks=True,
+               plottype='pcolormesh',
+               **kwargs):
     """
     Skymap handling as a matplotlib pcolormesh instead of the weird shenaningans healpy does to axes and figures.
     """
@@ -132,9 +147,27 @@ def add_skymap(ax, skymap, cmap='viridis', colorbar=True, shrink=0.8, pad=0.05, 
     kwargs_projview.update({k:v for k, v in kwargs.items() if k in healpy.projview.__code__.co_varnames})
     other_kwargs={k:v for k, v in kwargs.items() if (k not in healpy.projview.__code__.co_varnames) or (k == 'norm')}
     ra_, dec_, map_ = healpy.projview(skymap, return_only_data=True, **kwargs_projview)
-    pmesh = ax.pcolormesh(ra_, dec_, map_, cmap=cmap, rasterized=True, **other_kwargs)
-    if colorbar:        
-        cb = plt.colorbar(pmesh, ax=ax, orientation='horizontal', shrink=shrink, pad=pad, aspect=aspect)
+    try:
+        # Cartopy support
+        from cartopy.mpl.geoaxes import GeoAxes
+        if isinstance(ax, GeoAxes):
+            ra_*=180/np.pi
+            dec_*=180/np.pi
+    except:
+        pass
+    if plottype=="pcolormesh":
+        pmesh = ax.pcolormesh(ra_, dec_, map_, cmap=cmap, rasterized=True, **other_kwargs)
+    elif plottype=="contourf":
+        pmesh = ax.contourf(ra_, dec_, map_, cmap=cmap, **other_kwargs)
+    elif plottype=="contour":
+        pmesh = ax.contour(ra_, dec_, map_, cmap=cmap, **other_kwargs)
+
+    if colorbar:
+        colorbar_kw = dict(location=location,
+                           shrink=shrink,
+                           pad=pad,
+                           aspect=aspect)
+        cb = plt.colorbar(pmesh, ax=ax, **colorbar_kw)
         cb.ax.tick_params(labelsize=8)
         cb.set_label(label=cb_label, fontsize=12)
     if rm_ticks:    
