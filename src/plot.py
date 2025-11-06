@@ -3,7 +3,10 @@ import numpy as np
 import corner
 from scipy.spatial import cKDTree
 from scipy.ndimage import gaussian_filter
+from scipy.interpolate import interp1d
 from astropy.time import Time
+from astropy.coordinates import Galactic, ICRS
+import astropy.units as u
 import matplotlib.cm as cm
 from matplotlib.colors import Normalize
 from numpy.lib.histograms import _get_bin_edges
@@ -117,10 +120,10 @@ def scatter_mollweide(data, ax=None, unit="degree", rot=(0,0), **kwargs):
         fig = plt.figure()
         ax = fig.add_subplot(projection="mollweide")
 
-    params = dict(s=1, alpha=0.3, marker=".")
+    params = dict(s=5, alpha=1., marker=".")
     params.update(kwargs)
 
-    ra, dec = data["ra"] - rot[0], data["dec"] - rot[1]
+    ra, dec = healpy.Rotator(rot=rot)(data.ra, data.dec, lonlat=(unit=='degree'))
 
     return ax.scatter(
             *wrapp_around(ra,dec, unit_in=unit, unit_out='rad'),
@@ -137,7 +140,7 @@ def add_clusters(clusters, ax=None, color="tab:red"):
     for name, ra, dec in clusters[["name", "ra", "dec"]].values:
         ax.text(ra*np.pi/180 - 2*np.pi*(ra > 180) +0.03, dec*np.pi/180 +0.03, name, fontsize=7, color=color)
 
-def add_skymap(ax, skymap, cmap='viridis', colorbar=True, location='bottom', shrink=0.8, pad=0.05, aspect=50, cb_label=None, rm_ticks=True,
+def add_skymap(skymap, ax=None, cmap='YlGnBu_r', colorbar=True, location='bottom', shrink=0.8, pad=0.05, aspect=50, cb_label=None, rm_ticks=True,
                plottype='pcolormesh',
                **kwargs):
     """
@@ -145,6 +148,10 @@ def add_skymap(ax, skymap, cmap='viridis', colorbar=True, location='bottom', shr
     """
     kwargs_projview = dict(flip="geo", projection_type="mollweide")
     kwargs_projview.update({k:v for k, v in kwargs.items() if k in healpy.projview.__code__.co_varnames})
+    
+    if ax is None:
+        fig, ax = plt.subplots(subplot_kw=dict(projection=kwargs_projview['projection_type']))
+    
     other_kwargs={k:v for k, v in kwargs.items() if (k not in healpy.projview.__code__.co_varnames) or (k == 'norm')}
     ra_, dec_, map_ = healpy.projview(skymap, return_only_data=True, **kwargs_projview)
     try:
@@ -192,9 +199,35 @@ def add_grid(ax, t_step=30, p_step=60, rot=[0], **kwargs):
     ax.set_xticks(phiSpacing[1:-1]*np.pi/180, list(map(lambda x: f'{x+360*(x < 0):0d}°', phiSpacing[1:-1])))
     ax.tick_params(labelsize=7)
 
+def add_milkyway(b=7, n_bins=400, l_start=0, l_stop=360, ax=None, zorder=2, **kwargs):
+    """
+    Add the milkyway region to a plot.
+    """
+    if ax is None:
+        _, ax = plt.subplots(subplot_kw=dict(projection='mollweide'))
+    
+    long_, lat_min, lat_max = np.linspace(l_start, l_stop, n_bins)*u.deg, b*np.ones(n_bins)*u.deg,  -b*np.ones(n_bins)*u.deg
+    gal_min = Galactic(long_, lat_min).transform_to(ICRS())
+    gal_max = Galactic(long_, lat_max).transform_to(ICRS())
+    ra_min, dec_min = wrapp_around(gal_min.ra.value, gal_min.dec.value)
+    ra_max, dec_max = wrapp_around(gal_max.ra.value, gal_max.dec.value)
+    def reorder(ra, dec):
+        id_cut = ra.argmax()+1
+        return np.hstack([ra[id_cut:], ra[:id_cut],]), np.hstack([dec[id_cut:], dec[:id_cut],])
+    ra_min, dec_min = reorder(ra_min, dec_min)
+    ra_max, dec_max = reorder(ra_max, dec_max)
+    inter_decmax=interp1d(ra_max, dec_max, bounds_error=False)
+    dec_max = inter_decmax(ra_min)
+    
+    props=dict(facecolor="0.7", alpha=1)
+    props.update(**kwargs, zorder=zorder)
+    ax.fill_between(ra_min,
+                    dec_min,
+                    dec_max,
+                    **props
+                    )
 
-
-def scatter_3d(x, y, z, bins=50):
+def scatter_3d(x, y, z, bins=50, weights=None, add_colorbar=True, **kwargs):
     """
     3D scatter plot in cartesian coordinates with color coding according to the local density of points
 
@@ -208,9 +241,15 @@ def scatter_3d(x, y, z, bins=50):
         Z coordinates.
     bins : int, optional
         Number of bins for the density evaluation.
+    weights : array-like, optional, shape(n, )
+        Weights for the density histogram.
+    add_colorbar : bool, optional
+        Whether to add the density colorbar to the figure.
+    **kwargs : optional
+        Additional kwargs are passed to `plt.scatter()`.
     """
 
-    count, (binx, biny, binz) = np.histogramdd([x, y, z], bins=bins)
+    count, (binx, biny, binz) = np.histogramdd(np.column_stack([x, y, z]), bins=bins, weights=weights)
     count = gaussian_filter(count, 0.9)
     x_, y_, z_ = np.meshgrid(
         (binx[:-1] + binx[1:]) / 2 - binx.min(),
@@ -222,18 +261,19 @@ def scatter_3d(x, y, z, bins=50):
     dist_id, nn_id = tree.query(pts, k=1)
     c = np.transpose(count, axes=[1, 0, 2]).flatten()[nn_id]
     fig, ax = plt.subplots(figsize=(10, 10), subplot_kw={"projection": "3d"})
-    ax.scatter(x, y, z, c=c, s=0.5, alpha=0.1)
+    default_style=dict(s=0.5, alpha=0.1, cmap='viridis')
+    default_style.update(**kwargs)
+    ax.scatter(x, y, z, c=c, **default_style)
     ax.set_xlabel('x')
     ax.set_ylabel('y')
     ax.set_zlabel('z')
     ax.azim = -45
     ax.elev = 30
 
-    cmap = cm.viridis
-    norm = Normalize(vmin=c.min(), vmax=c.max())
-    fig.colorbar(cm.ScalarMappable(norm=norm, cmap=cmap), ax=ax, orientation='vertical')
-
-    
+    if add_colorbar:
+        norm = Normalize(vmin=c.min(), vmax=c.max())
+        fig.colorbar(cm.ScalarMappable(norm=norm, cmap=default_style['cmap']), ax=ax, orientation='vertical')
+    return ax    
 
 
 def plot_res(data, data_truth, col, label, unit=None, log=False, linthresh=1e-3):
