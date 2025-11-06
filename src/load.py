@@ -68,6 +68,33 @@ def load_bgs(
     logger.log(logging.INFO, "Done")
     return df
 
+def read_galaxies(filename):
+    """
+    Read the galaxy data from a weirdly formatted file
+
+    Parameters
+    ----------
+    filename : str
+        Path or name of the file to read
+    
+    Return
+    ------
+    table : pandas.DataFrame
+        DataFrame ontaining the galaxies informations
+    """
+    # Load the weirdly formatted galaxy data:
+    table = pandas.read_csv(
+                            filename,
+                            delimiter="|",
+                            header=24,
+                            skiprows=[30],
+                            usecols=(0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 13, 14, 15, 16),
+                            skipinitialspace=True,
+                            )
+    table = table[(table["Vh"] > 0)]
+    c = 299792.458  # Speed of light in km/s
+    table["z"] = table["Vh"] / c
+    return table
 
 def extract_ztf(path='data/ztf_survey.pkl', start_time=58179, end_time=59215):
     """
