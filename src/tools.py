@@ -355,7 +355,7 @@ def gen_mask(nside, galb_range=[[-90,-10],[10,90]], dec_cut=-30):
     return mask
 
 
-def create_map(catalog, nside=64, map=None, col=None,):
+def create_map(catalog, nside=64, map=None, method=None, col=None):
     """
     Create a healpy map from a halo catalog
     
@@ -368,14 +368,16 @@ def create_map(catalog, nside=64, map=None, col=None,):
     map : arraylike, optional
         Alternatively adds current catalog to an already existing map.
         Using this option recovers the nside parameter of the map.
+    method : str, optional
+        One of ``['sum', 'mean', None]``. If ``None``, performs a simple count map.
+        Otherwise if ``col`` is provided, sum over or take the mean of the column.
     col : str, optional
-        One of ``['mass', 'vpec', None]``. If ``None``, performs a simple count map.
-        Otherwise use the relevant quantity.
+        Column to use when method is set to ``'sum'`` or ``'mean'``
 
     Return
     ------
     map : array or None
-        If a map was provided, it is updated and not returned. Otherwise return the new map.
+        If a map was provided, it is updated inplace and not returned. Otherwise return the new map.
     """
     
     return_map = map is None
@@ -384,13 +386,21 @@ def create_map(catalog, nside=64, map=None, col=None,):
     else:
         nside = healpy.npix2nside(map.shape[0])
     index = healpy.ang2pix(nside, catalog.ra, catalog.dec, lonlat=True)
-    if col=='mass':
-        pix_value = pandas.DataFrame({'pix_id':index, 'h_mass':catalog.BoundM200Crit.values}).groupby('pix_id').sum()
-    elif col=='vpec':
-        pix_value = pandas.DataFrame({'pix_id':index, 'h_vpec':catalog.vpec.values}).groupby('pix_id').mean()
+    if method=='sum':
+        if col is not None:
+            pix_value = pandas.DataFrame({'pix_id':index, col: catalog[col].values}).groupby('pix_id').sum()
+        else:
+            raise ValueError('No column to sum over, please specify ``col``')
+    elif method=='mean':
+        if col is not None:
+            pix_value = pandas.DataFrame({'pix_id':index, col:catalog[col].values}).groupby('pix_id').mean()
+        else:
+            raise ValueError('No column to sum over, please specify ``col``')
     else:
-        pix_value = pandas.DataFrame({'pix_id':index, 'h_mass':np.ones(index.shape)}).groupby('pix_id').count()
+        pix_value = pandas.DataFrame({'pix_id':index, "col_name":np.ones(index.shape)}).groupby('pix_id').count()
+    
     for pix_id in pix_value.index:
         map[pix_id] += pix_value.loc[pix_id].values[0]
+    
     if return_map:
         return map
